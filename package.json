@@ -1,0 +1,23 @@
+{
+  "name": "personal-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI对话应用 - 支持个性化定制、Prompt优化、技能专精",
+  "scripts": {
+    "dev": "pnpm -r --parallel run dev",
+    "dev:web": "pnpm --filter web dev",
+    "dev:server": "pnpm --filter server dev",
+    "build": "pnpm -r run build",
+    "lint": "pnpm -r run lint",
+    "lint:fix": "pnpm -r run lint --fix",
+    "format": "pnpm -r run format",
+    "format:check": "pnpm -r run format:check",
+    "clean": "pnpm -r run clean && rm -rf node_modules"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.15.0"
+}
+

@@ -1,0 +1,117 @@
+// Prisma Schema for Personal AI Application
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// 用户表
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  avatar    String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // 关联
+  conversations Conversation[]
+  aiAssistants  AIAssistant[]
+  prompts       Prompt[]
+
+  @@map("users")
+}
+
+// AI 助手配置表
+model AIAssistant {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  name        String
+  description String?
+  avatar      String?
+  systemPrompt String  @map("system_prompt")
+  model       String   @default("gpt-4")
+  temperature Float    @default(0.7)
+  maxTokens   Int      @default(2048) @map("max_tokens")
+  skills      String?  // 技能配置 JSON 字符串
+  isDefault   Boolean  @default(false) @map("is_default")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // 关联
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+
+  @@map("ai_assistants")
+}
+
+// 对话表
+model Conversation {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  assistantId  String?  @map("assistant_id")
+  title        String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // 关联
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assistant AIAssistant? @relation(fields: [assistantId], references: [id], onDelete: SetNull)
+  messages  Message[]
+
+  @@map("conversations")
+}
+
+// 消息表
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String   @map("conversation_id")
+  role           String   // user, assistant, system
+  content        String
+  tokenCount     Int?     @map("token_count")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // 关联
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+// Prompt 模板库
+model Prompt {
+  id          String   @id @default(cuid())
+  userId      String?  @map("user_id")
+  title       String
+  content     String
+  category    String?
+  tags        String?  // 标签 JSON 字符串，如 '["tag1","tag2"]'
+  isPublic    Boolean  @default(false) @map("is_public")
+  usageCount  Int      @default(0) @map("usage_count")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // 关联
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("prompts")
+}
+
+// 技能定义表
+model Skill {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  icon        String?
+  category    String?
+  config      String?  // 技能配置模板 JSON 字符串
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("skills")
+}
