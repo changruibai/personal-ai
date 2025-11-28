@@ -4,15 +4,7 @@ import type { FC } from 'react';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Send,
-  Bot,
-  User,
-  Loader2,
-  MessageSquare,
-  Trash2,
-  Plus,
-} from 'lucide-react';
+import { Send, Bot, User, Loader2, MessageSquare, Trash2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
@@ -191,8 +183,8 @@ const ChatPage: FC = () => {
   return (
     <div className="flex h-full">
       {/* 对话列表侧边栏 */}
-      <div className="w-72 border-r border-border flex flex-col bg-card/50">
-        <div className="p-4 border-b border-border">
+      <div className="flex w-72 flex-col border-r border-border bg-card/50">
+        <div className="border-b border-border p-4">
           <Button
             className="w-full gap-2"
             onClick={() => {
@@ -205,26 +197,24 @@ const ChatPage: FC = () => {
           </Button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+        <div className="flex-1 space-y-1 overflow-y-auto p-2">
           {conversations.map((conv) => (
             <div
               key={conv.id}
               className={cn(
-                'group flex items-center gap-2 p-3 rounded-lg cursor-pointer transition-colors',
+                'group flex cursor-pointer items-center gap-2 rounded-lg p-3 transition-colors',
                 currentConversationId === conv.id
                   ? 'bg-primary/10 text-primary'
-                  : 'hover:bg-accent'
+                  : 'hover:bg-accent',
               )}
               onClick={() => setCurrentConversation(conv.id)}
             >
               <MessageSquare className="h-4 w-4 flex-shrink-0" />
-              <span className="flex-1 truncate text-sm">
-                {conv.title || '新对话'}
-              </span>
+              <span className="flex-1 truncate text-sm">{conv.title || '新对话'}</span>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="h-6 w-6 opacity-0 transition-opacity group-hover:opacity-100"
                 onClick={(e) => {
                   e.stopPropagation();
                   deleteConversation.mutate(conv.id);
@@ -236,31 +226,29 @@ const ChatPage: FC = () => {
           ))}
 
           {conversations.length === 0 && (
-            <div className="text-center text-muted-foreground text-sm py-8">
-              暂无对话记录
-            </div>
+            <div className="py-8 text-center text-sm text-muted-foreground">暂无对话记录</div>
           )}
         </div>
       </div>
 
       {/* 聊天主区域 */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex flex-1 flex-col">
         {/* 消息区域 */}
         <div className="flex-1 overflow-y-auto p-4">
           {messages.length === 0 && !loadingConversation ? (
-            <div className="h-full flex flex-col items-center justify-center text-center">
-              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
-                <Bot className="w-8 h-8 text-primary" />
+            <div className="flex h-full flex-col items-center justify-center text-center">
+              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
+                <Bot className="h-8 w-8 text-primary" />
               </div>
-              <h2 className="text-2xl font-bold mb-2">开始新对话</h2>
-              <p className="text-muted-foreground max-w-md">
+              <h2 className="mb-2 text-2xl font-bold">开始新对话</h2>
+              <p className="max-w-md text-muted-foreground">
                 我是你的AI助手，可以帮助你解答问题、写作、编程等。
                 <br />
                 输入你的问题开始对话吧！
               </p>
             </div>
           ) : (
-            <div className="max-w-3xl mx-auto space-y-4">
+            <div className="mx-auto max-w-3xl space-y-4">
               <AnimatePresence>
                 {messages.map((message) => (
                   <motion.div
@@ -270,21 +258,19 @@ const ChatPage: FC = () => {
                     exit={{ opacity: 0 }}
                     className={cn(
                       'flex gap-3',
-                      message.role === 'user' ? 'justify-end' : 'justify-start'
+                      message.role === 'user' ? 'justify-end' : 'justify-start',
                     )}
                   >
                     {message.role === 'assistant' && (
-                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <Bot className="w-4 h-4 text-primary" />
+                      <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                        <Bot className="h-4 w-4 text-primary" />
                       </div>
                     )}
 
                     <div
                       className={cn(
                         'max-w-[80%] rounded-2xl px-4 py-3',
-                        message.role === 'user'
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted'
+                        message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted',
                       )}
                     >
                       {message.role === 'assistant' ? (
@@ -299,8 +285,8 @@ const ChatPage: FC = () => {
                     </div>
 
                     {message.role === 'user' && (
-                      <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
-                        <User className="w-4 h-4 text-primary-foreground" />
+                      <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary">
+                        <User className="h-4 w-4 text-primary-foreground" />
                       </div>
                     )}
                   </motion.div>
@@ -312,12 +298,12 @@ const ChatPage: FC = () => {
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="flex gap-3 justify-start"
+                  className="flex justify-start gap-3"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <Bot className="w-4 h-4 text-primary" />
+                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                    <Bot className="h-4 w-4 text-primary" />
                   </div>
-                  <div className="max-w-[80%] rounded-2xl px-4 py-3 bg-muted">
+                  <div className="max-w-[80%] rounded-2xl bg-muted px-4 py-3">
                     {streamingContent ? (
                       <div className="prose prose-sm dark:prose-invert max-w-none">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -326,7 +312,7 @@ const ChatPage: FC = () => {
                         <span className="typing-cursor" />
                       </div>
                     ) : (
-                      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                     )}
                   </div>
                 </motion.div>
@@ -337,13 +323,13 @@ const ChatPage: FC = () => {
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="flex gap-3 justify-start"
+                  className="flex justify-start gap-3"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <Bot className="w-4 h-4 text-primary" />
+                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                    <Bot className="h-4 w-4 text-primary" />
                   </div>
-                  <div className="rounded-2xl px-4 py-3 bg-muted">
-                    <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                  <div className="rounded-2xl bg-muted px-4 py-3">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                   </div>
                 </motion.div>
               )}
@@ -355,7 +341,7 @@ const ChatPage: FC = () => {
 
         {/* 输入区域 */}
         <div className="border-t border-border p-4">
-          <div className="max-w-3xl mx-auto">
+          <div className="mx-auto max-w-3xl">
             <div className="relative">
               <Textarea
                 ref={textareaRef}
@@ -363,12 +349,12 @@ const ChatPage: FC = () => {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="输入消息... (Enter发送, Shift+Enter换行)"
-                className="min-h-[56px] max-h-[200px] pr-14 resize-none"
+                className="max-h-[200px] min-h-[56px] resize-none pr-14"
                 disabled={sendMessage.isPending}
               />
               <Button
                 size="icon"
-                className="absolute right-2 bottom-2"
+                className="absolute bottom-2 right-2"
                 onClick={handleSend}
                 disabled={!input.trim() || sendMessage.isPending}
               >
@@ -379,7 +365,7 @@ const ChatPage: FC = () => {
                 )}
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground mt-2 text-center">
+            <p className="mt-2 text-center text-xs text-muted-foreground">
               AI生成的内容仅供参考，请自行判断准确性
             </p>
           </div>
@@ -390,4 +376,3 @@ const ChatPage: FC = () => {
 };
 
 export default ChatPage;
-

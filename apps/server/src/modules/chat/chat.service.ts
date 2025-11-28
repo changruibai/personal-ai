@@ -176,11 +176,7 @@ export class ChatService {
   }
 
   // 流式发送消息
-  async *sendMessageStream(
-    conversationId: string,
-    userId: string,
-    dto: SendMessageDto,
-  ) {
+  async *sendMessageStream(conversationId: string, userId: string, dto: SendMessageDto) {
     // 验证对话存在
     const conversation = await this.prisma.conversation.findFirst({
       where: { id: conversationId, userId },
@@ -254,4 +250,3 @@ export class ChatService {
     });
   }
 }
-

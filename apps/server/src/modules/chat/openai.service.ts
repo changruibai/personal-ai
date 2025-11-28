@@ -1,3 +1,11 @@
+/*
+ * @Author: error: error: git config user.name & please set dead value or install git && error: git config user.email & please set dead value or install git & please set dead value or install git
+ * @Date: 2025-11-28 18:56:50
+ * @LastEditors: error: error: git config user.name & please set dead value or install git && error: git config user.email & please set dead value or install git & please set dead value or install git
+ * @LastEditTime: 2025-11-28 23:35:13
+ * @FilePath: /personal-ai/apps/server/src/modules/chat/openai.service.ts
+ * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+ */
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
@@ -27,11 +35,7 @@ export class OpenAIService {
   }
 
   async chat(messages: ChatMessage[], options: ChatOptions = {}) {
-    const {
-      model = 'gpt-4',
-      temperature = 0.7,
-      maxTokens = 2048,
-    } = options;
+    const { model = 'gpt-4', temperature = 0.7, maxTokens = 2048 } = options;
 
     const response = await this.openai.chat.completions.create({
       model,
@@ -47,11 +51,7 @@ export class OpenAIService {
   }
 
   async *chatStream(messages: ChatMessage[], options: ChatOptions = {}) {
-    const {
-      model = 'gpt-4',
-      temperature = 0.7,
-      maxTokens = 2048,
-    } = options;
+    const { model = 'gpt-4', temperature = 0.7, maxTokens = 2048 } = options;
 
     const stream = await this.openai.chat.completions.create({
       model,
@@ -69,4 +69,3 @@ export class OpenAIService {
     }
   }
 }
-
