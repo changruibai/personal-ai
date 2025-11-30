@@ -4,7 +4,7 @@ import type { FC, ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
-import { Sidebar } from '@/components/layout/sidebar';
+import { Header } from '@/components/layout/header';
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -39,8 +39,8 @@ const MainLayout: FC<MainLayoutProps> = ({ children }) => {
   }
 
   return (
-    <div className="flex h-screen bg-background">
-      <Sidebar />
+    <div className="flex h-screen flex-col bg-background">
+      <Header />
       <main className="flex-1 overflow-hidden">{children}</main>
     </div>
   );

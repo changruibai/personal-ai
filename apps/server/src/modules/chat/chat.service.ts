@@ -31,11 +31,19 @@ export class ChatService {
       where: { userId },
       orderBy: { updatedAt: 'desc' },
       include: {
+        // 优化：返回完整的 assistant 信息，避免前端重复请求
         assistant: {
           select: {
             id: true,
             name: true,
+            description: true,
             avatar: true,
+            model: true,
+            temperature: true,
+            maxTokens: true,
+            systemPrompt: true,
+            skills: true,
+            isDefault: true,
           },
         },
         messages: {

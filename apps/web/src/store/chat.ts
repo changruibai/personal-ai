@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 
+// 类型定义
 export interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
@@ -14,70 +15,42 @@ export interface Conversation {
   assistant?: {
     id: string;
     name: string;
+    description?: string;
     avatar?: string;
+    model?: string;
+    temperature?: number;
+    maxTokens?: number;
+    systemPrompt?: string;
   };
   messages: Message[];
   createdAt: string;
   updatedAt: string;
 }
 
+// 优化后的 Store：只管理 UI 状态，不管理服务端数据
+// 服务端数据统一由 React Query 管理
 interface ChatState {
-  conversations: Conversation[];
+  // UI 状态
   currentConversationId: string | null;
   isStreaming: boolean;
   streamingContent: string;
   
-  setConversations: (conversations: Conversation[]) => void;
-  addConversation: (conversation: Conversation) => void;
-  updateConversation: (id: string, data: Partial<Conversation>) => void;
-  removeConversation: (id: string) => void;
+  // UI 状态操作
   setCurrentConversation: (id: string | null) => void;
-  addMessage: (conversationId: string, message: Message) => void;
   setStreaming: (isStreaming: boolean) => void;
   appendStreamContent: (content: string) => void;
   resetStreamContent: () => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
-  conversations: [],
+  // 初始状态
   currentConversationId: null,
   isStreaming: false,
   streamingContent: '',
 
-  setConversations: (conversations) => set({ conversations }),
-
-  addConversation: (conversation) =>
-    set((state) => ({
-      conversations: [conversation, ...state.conversations],
-    })),
-
-  updateConversation: (id, data) =>
-    set((state) => ({
-      conversations: state.conversations.map((c) =>
-        c.id === id ? { ...c, ...data } : c
-      ),
-    })),
-
-  removeConversation: (id) =>
-    set((state) => ({
-      conversations: state.conversations.filter((c) => c.id !== id),
-      currentConversationId:
-        state.currentConversationId === id
-          ? null
-          : state.currentConversationId,
-    })),
-
+  // UI 状态操作
   setCurrentConversation: (id) => set({ currentConversationId: id }),
-
-  addMessage: (conversationId, message) =>
-    set((state) => ({
-      conversations: state.conversations.map((c) =>
-        c.id === conversationId
-          ? { ...c, messages: [...c.messages, message] }
-          : c
-      ),
-    })),
-
+  
   setStreaming: (isStreaming) => set({ isStreaming }),
 
   appendStreamContent: (content) =>

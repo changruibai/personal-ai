@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Bot, User, Loader2, MessageSquare, Trash2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { chatApi, assistantApi } from '@/lib/api';
+import { chatApi } from '@/lib/api';
 import { useChatStore, type Message, type Conversation } from '@/store/chat';
 import { useToast } from '@/components/ui/use-toast';
 import MarkdownRenderer from '@/components/chat/markdown-renderer';
@@ -41,7 +41,7 @@ const ChatPage: FC = () => {
     }
   }, [searchParams, setCurrentConversation]);
 
-  // 获取对话列表
+  // 获取对话列表（由于 React Query 缓存，如果 Sidebar 已请求过，这里会直接使用缓存）
   const { data: conversations = [] } = useQuery<Conversation[]>({
     queryKey: ['conversations'],
     queryFn: async () => {
@@ -61,17 +61,8 @@ const ChatPage: FC = () => {
     enabled: !!currentConversationId,
   });
 
-  // 获取当前对话的助手信息
-  const assistantId = currentConversation?.assistantId;
-  const { data: assistant } = useQuery({
-    queryKey: ['assistant', assistantId],
-    queryFn: async () => {
-      if (!assistantId) return null;
-      const res = await assistantApi.getOne(assistantId);
-      return res.data;
-    },
-    enabled: !!assistantId,
-  });
+  // 优化：直接从对话数据中获取 assistant 信息，不需要额外请求
+  const assistant = currentConversation?.assistant;
 
   // 更新消息列表
   useEffect(() => {
@@ -196,7 +187,7 @@ const ChatPage: FC = () => {
   return (
     <div className="flex h-full">
       {/* 对话列表侧边栏 */}
-      <div className="flex w-72 flex-col border-r border-border bg-card/50">
+      <div className="flex w-80 flex-col border-r border-border bg-card/30">
         <div className="border-b border-border p-4">
           <Button
             className="w-full gap-2"
@@ -210,12 +201,12 @@ const ChatPage: FC = () => {
           </Button>
         </div>
 
-        <div className="flex-1 space-y-1 overflow-y-auto p-2">
+        <div className="flex-1 space-y-1 overflow-y-auto p-3">
           {conversations.map((conv) => (
             <div
               key={conv.id}
               className={cn(
-                'group flex cursor-pointer items-center gap-2 rounded-lg p-3 transition-colors',
+                'group flex cursor-pointer items-center gap-3 rounded-lg p-3 transition-colors',
                 currentConversationId === conv.id
                   ? 'bg-primary/10 text-primary'
                   : 'hover:bg-accent',
@@ -224,7 +215,7 @@ const ChatPage: FC = () => {
             >
               <MessageSquare className="h-4 w-4 flex-shrink-0" />
               <div className="min-w-0 flex-1">
-                <span className="block truncate text-sm">{conv.title || '新对话'}</span>
+                <span className="block truncate text-sm font-medium">{conv.title || '新对话'}</span>
                 {conv.assistant && (
                   <span className="block truncate text-xs text-muted-foreground">
                     {conv.assistant.name}

@@ -1,9 +1,10 @@
 'use client';
 
 import type { FC } from 'react';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Bot,
   MessageSquare,
@@ -20,7 +21,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/store/auth';
-import { useChatStore } from '@/store/chat';
+import { useChatStore, type Conversation } from '@/store/chat';
 import { chatApi } from '@/lib/api';
 
 const menuItems = [
@@ -33,43 +34,62 @@ const menuItems = [
 export const Sidebar: FC = () => {
   const pathname = usePathname();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user, logout } = useAuthStore();
-  const { conversations, currentConversationId, setConversations, removeConversation, setCurrentConversation } = useChatStore();
+  const { currentConversationId, setCurrentConversation } = useChatStore();
   const [collapsed, setCollapsed] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-  // 加载会话列表
-  useEffect(() => {
-    loadConversations();
-  }, []);
+  // 使用 React Query 获取会话列表
+  const { data: conversations = [] } = useQuery<Conversation[]>({
+    queryKey: ['conversations'],
+    queryFn: async () => {
+      const res = await chatApi.getConversations();
+      return res.data;
+    },
+  });
 
-  const loadConversations = async () => {
-    try {
-      const { data } = await chatApi.getConversations();
-      setConversations(data);
-    } catch (error) {
-      console.error('加载会话列表失败:', error);
-    }
-  };
-
-  // 删除会话
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    try {
-      await chatApi.deleteConversation(id);
-      removeConversation(id);
+  // 删除会话 mutation
+  const deleteConversation = useMutation({
+    mutationFn: (id: string) => chatApi.deleteConversation(id),
+    onSuccess: (_, id) => {
+      // 刷新会话列表
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
       
-      // 如果删除的是当前会话，跳转到新会话
+      // 如果删除的是当前会话，清空当前会话 ID
       if (currentConversationId === id) {
+        setCurrentConversation(null);
         router.push('/chat');
       }
-    } catch (error) {
-      console.error('删除会话失败:', error);
-    }
+    },
+  });
+
+  // 更新会话标题 mutation
+  const updateTitle = useMutation({
+    mutationFn: ({ id, title }: { id: string; title: string }) =>
+      chatApi.updateConversationTitle(id, title),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      setEditingId(null);
+    },
+  });
+
+  // 创建新对话 mutation
+  const createConversation = useMutation({
+    mutationFn: () => chatApi.createConversation({}),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      router.push(`/chat?id=${res.data.id}`);
+    },
+  });
+
+  // 删除会话处理
+  const handleDelete = (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    deleteConversation.mutate(id);
   };
 
   // 开始编辑标题
@@ -81,25 +101,13 @@ export const Sidebar: FC = () => {
   };
 
   // 保存标题
-  const handleSaveTitle = async (id: string) => {
-    try {
-      await chatApi.updateConversationTitle(id, editTitle);
-      await loadConversations();
-      setEditingId(null);
-    } catch (error) {
-      console.error('更新标题失败:', error);
-    }
+  const handleSaveTitle = (id: string) => {
+    updateTitle.mutate({ id, title: editTitle });
   };
 
   // 创建新对话
-  const handleNewChat = async () => {
-    try {
-      const { data } = await chatApi.createConversation({});
-      router.push(`/chat?id=${data.id}`);
-      await loadConversations();
-    } catch (error) {
-      console.error('创建会话失败:', error);
-    }
+  const handleNewChat = () => {
+    createConversation.mutate();
   };
 
   return (
