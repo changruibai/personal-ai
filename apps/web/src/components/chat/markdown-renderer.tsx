@@ -117,7 +117,7 @@ const MarkdownRenderer: FC<MarkdownRendererProps> = memo(({ content, className }
             </h3>
           ),
           p: ({ children, ...props }) => (
-            <p className="mb-4 leading-7" {...props}>
+            <p className="leading-7 last:mb-0" {...props}>
               {children}
             </p>
           ),

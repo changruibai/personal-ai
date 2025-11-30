@@ -3,6 +3,7 @@
 import type { FC } from 'react';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Bot,
@@ -13,10 +14,11 @@ import {
   Star,
   Settings2,
   Loader2,
+  MessageSquare,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { assistantApi } from '@/lib/api';
+import { assistantApi, chatApi } from '@/lib/api';
 import { useToast } from '@/components/ui/use-toast';
 import { AssistantDialog } from '@/components/assistant/assistant-dialog';
 
@@ -37,6 +39,7 @@ interface Assistant {
 const AssistantsPage: FC = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingAssistant, setEditingAssistant] = useState<Assistant | null>(null);
 
@@ -91,6 +94,20 @@ const AssistantsPage: FC = () => {
     setEditingAssistant(assistant);
     setDialogOpen(true);
   };
+
+  // 开始与助手对话
+  const startChat = useMutation({
+    mutationFn: async (assistantId: string) => {
+      const res = await chatApi.createConversation({ assistantId });
+      return res.data;
+    },
+    onSuccess: (conversation) => {
+      router.push(`/chat?id=${conversation.id}`);
+    },
+    onError: () => {
+      toast({ variant: 'destructive', title: '创建对话失败' });
+    },
+  });
 
   return (
     <div className="h-full overflow-y-auto">
@@ -179,13 +196,23 @@ const AssistantsPage: FC = () => {
                   {/* Actions */}
                   <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                     <Button
-                      variant="outline"
+                      variant="default"
                       size="sm"
                       className="flex-1"
-                      onClick={() => handleEdit(assistant)}
+                      onClick={() => startChat.mutate(assistant.id)}
+                      disabled={startChat.isPending}
                     >
-                      <Edit className="h-3 w-3 mr-1" />
-                      编辑
+                      <MessageSquare className="h-3 w-3 mr-1" />
+                      开始对话
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => handleEdit(assistant)}
+                      title="编辑"
+                    >
+                      <Edit className="h-3 w-3" />
                     </Button>
                     <Button
                       variant="outline"

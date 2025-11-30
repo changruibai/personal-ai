@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Bot, User, Loader2, MessageSquare, Trash2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { chatApi } from '@/lib/api';
+import { chatApi, assistantApi } from '@/lib/api';
 import { useChatStore, type Message, type Conversation } from '@/store/chat';
 import { useToast } from '@/components/ui/use-toast';
 import MarkdownRenderer from '@/components/chat/markdown-renderer';
@@ -59,6 +59,18 @@ const ChatPage: FC = () => {
       return res.data;
     },
     enabled: !!currentConversationId,
+  });
+
+  // 获取当前对话的助手信息
+  const assistantId = currentConversation?.assistantId;
+  const { data: assistant } = useQuery({
+    queryKey: ['assistant', assistantId],
+    queryFn: async () => {
+      if (!assistantId) return null;
+      const res = await assistantApi.getOne(assistantId);
+      return res.data;
+    },
+    enabled: !!assistantId,
   });
 
   // 更新消息列表
@@ -211,7 +223,14 @@ const ChatPage: FC = () => {
               onClick={() => setCurrentConversation(conv.id)}
             >
               <MessageSquare className="h-4 w-4 flex-shrink-0" />
-              <span className="flex-1 truncate text-sm">{conv.title || '新对话'}</span>
+              <div className="min-w-0 flex-1">
+                <span className="block truncate text-sm">{conv.title || '新对话'}</span>
+                {conv.assistant && (
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {conv.assistant.name}
+                  </span>
+                )}
+              </div>
               <Button
                 variant="ghost"
                 size="icon"
@@ -234,6 +253,23 @@ const ChatPage: FC = () => {
 
       {/* 聊天主区域 */}
       <div className="flex flex-1 flex-col">
+        {/* 顶部助手信息栏 */}
+        {assistant && (
+          <div className="border-b border-border bg-card/50 px-6 py-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                <Bot className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <div className="font-semibold">{assistant.name}</div>
+                {assistant.description && (
+                  <div className="text-xs text-muted-foreground">{assistant.description}</div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 消息区域 */}
         <div className="flex-1 overflow-y-auto p-4">
           {messages.length === 0 && !loadingConversation ? (

@@ -24,9 +24,9 @@ export class AssistantService {
         description: dto.description,
         avatar: dto.avatar,
         systemPrompt: dto.systemPrompt,
-        model: dto.model || 'gpt-4',
-        temperature: dto.temperature || 0.7,
-        maxTokens: dto.maxTokens || 2048,
+        model: dto.model || 'gpt-4o',
+        temperature: dto.temperature ?? 0.9,
+        maxTokens: dto.maxTokens || 4096,
         skills: dto.skills ? JSON.stringify(dto.skills) : null,
         isDefault: dto.isDefault || false,
       },
@@ -110,4 +110,3 @@ export class AssistantService {
     });
   }
 }
-

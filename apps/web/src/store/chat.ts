@@ -11,6 +11,11 @@ export interface Conversation {
   id: string;
   title?: string | null;
   assistantId?: string;
+  assistant?: {
+    id: string;
+    name: string;
+    avatar?: string;
+  };
   messages: Message[];
   createdAt: string;
   updatedAt: string;
