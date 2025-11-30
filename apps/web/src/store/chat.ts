@@ -9,7 +9,7 @@ export interface Message {
 
 export interface Conversation {
   id: string;
-  title?: string;
+  title?: string | null;
   assistantId?: string;
   messages: Message[];
   createdAt: string;
@@ -24,6 +24,7 @@ interface ChatState {
   
   setConversations: (conversations: Conversation[]) => void;
   addConversation: (conversation: Conversation) => void;
+  updateConversation: (id: string, data: Partial<Conversation>) => void;
   removeConversation: (id: string) => void;
   setCurrentConversation: (id: string | null) => void;
   addMessage: (conversationId: string, message: Message) => void;
@@ -43,6 +44,13 @@ export const useChatStore = create<ChatState>((set) => ({
   addConversation: (conversation) =>
     set((state) => ({
       conversations: [conversation, ...state.conversations],
+    })),
+
+  updateConversation: (id, data) =>
+    set((state) => ({
+      conversations: state.conversations.map((c) =>
+        c.id === id ? { ...c, ...data } : c
+      ),
     })),
 
   removeConversation: (id) =>

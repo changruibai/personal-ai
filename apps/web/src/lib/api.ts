@@ -56,6 +56,8 @@ export const chatApi = {
   createConversation: (data: { title?: string; assistantId?: string }) =>
     api.post('/chat/conversations', data),
   deleteConversation: (id: string) => api.delete(`/chat/conversations/${id}`),
+  updateConversationTitle: (id: string, title: string) =>
+    api.put(`/chat/conversations/${id}/title`, { title }),
   sendMessage: (conversationId: string, content: string) =>
     api.post(`/chat/conversations/${conversationId}/messages`, { content }),
   sendMessageStream: async function* (

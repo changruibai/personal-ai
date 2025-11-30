@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Delete,
   Body,
   Param,
@@ -55,6 +56,16 @@ export class ChatController {
     @Param('id') id: string,
   ) {
     return this.chatService.deleteConversation(id, user.id);
+  }
+
+  @Put('conversations/:id/title')
+  @ApiOperation({ summary: '更新对话标题' })
+  async updateConversationTitle(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Body() dto: { title: string },
+  ) {
+    return this.chatService.updateConversationTitle(id, user.id, dto.title);
   }
 
   @Post('conversations/:id/messages')

@@ -1,9 +1,9 @@
 'use client';
 
 import type { FC } from 'react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   Bot,
   MessageSquare,
@@ -14,10 +14,14 @@ import {
   ChevronLeft,
   Plus,
   User,
+  Trash2,
+  Edit2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/store/auth';
+import { useChatStore } from '@/store/chat';
+import { chatApi } from '@/lib/api';
 
 const menuItems = [
   { icon: MessageSquare, label: '对话', href: '/chat' },
@@ -28,8 +32,75 @@ const menuItems = [
 
 export const Sidebar: FC = () => {
   const pathname = usePathname();
+  const router = useRouter();
   const { user, logout } = useAuthStore();
+  const { conversations, currentConversationId, setConversations, removeConversation, setCurrentConversation } = useChatStore();
   const [collapsed, setCollapsed] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+
+  // 加载会话列表
+  useEffect(() => {
+    loadConversations();
+  }, []);
+
+  const loadConversations = async () => {
+    try {
+      const { data } = await chatApi.getConversations();
+      setConversations(data);
+    } catch (error) {
+      console.error('加载会话列表失败:', error);
+    }
+  };
+
+  // 删除会话
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    try {
+      await chatApi.deleteConversation(id);
+      removeConversation(id);
+      
+      // 如果删除的是当前会话，跳转到新会话
+      if (currentConversationId === id) {
+        router.push('/chat');
+      }
+    } catch (error) {
+      console.error('删除会话失败:', error);
+    }
+  };
+
+  // 开始编辑标题
+  const handleStartEdit = (id: string, title: string | null | undefined, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setEditingId(id);
+    setEditTitle(title || '新对话');
+  };
+
+  // 保存标题
+  const handleSaveTitle = async (id: string) => {
+    try {
+      await chatApi.updateConversationTitle(id, editTitle);
+      await loadConversations();
+      setEditingId(null);
+    } catch (error) {
+      console.error('更新标题失败:', error);
+    }
+  };
+
+  // 创建新对话
+  const handleNewChat = async () => {
+    try {
+      const { data } = await chatApi.createConversation({});
+      router.push(`/chat?id=${data.id}`);
+      await loadConversations();
+    } catch (error) {
+      console.error('创建会话失败:', error);
+    }
+  };
 
   return (
     <aside
@@ -65,15 +136,14 @@ export const Sidebar: FC = () => {
 
       {/* New Chat Button */}
       <div className="p-3">
-        <Link href="/chat">
-          <Button
-            className={cn('w-full gap-2', collapsed && 'px-0')}
-            variant="default"
-          >
-            <Plus className="h-4 w-4" />
-            {!collapsed && '新对话'}
-          </Button>
-        </Link>
+        <Button
+          onClick={handleNewChat}
+          className={cn('w-full gap-2', collapsed && 'px-0')}
+          variant="default"
+        >
+          <Plus className="h-4 w-4" />
+          {!collapsed && '新对话'}
+        </Button>
       </div>
 
       {/* Navigation */}
@@ -96,6 +166,78 @@ export const Sidebar: FC = () => {
             </Link>
           );
         })}
+
+        {/* 会话列表 */}
+        {!collapsed && pathname.startsWith('/chat') && (
+          <div className="mt-4 space-y-1">
+            <div className="px-3 py-2 text-xs font-semibold text-muted-foreground">
+              最近对话
+            </div>
+            {conversations.map((conversation) => (
+              <Link
+                key={conversation.id}
+                href={`/chat?id=${conversation.id}`}
+                onMouseEnter={() => setHoveredId(conversation.id)}
+                onMouseLeave={() => setHoveredId(null)}
+              >
+                <div
+                  className={cn(
+                    'group flex items-center gap-2 px-3 py-2 rounded-lg transition-colors',
+                    currentConversationId === conversation.id
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                  )}
+                >
+                  {editingId === conversation.id ? (
+                    <input
+                      type="text"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      onBlur={() => handleSaveTitle(conversation.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleSaveTitle(conversation.id);
+                        } else if (e.key === 'Escape') {
+                          setEditingId(null);
+                        }
+                      }}
+                      className="flex-1 bg-transparent border-b border-primary outline-none"
+                      autoFocus
+                      onClick={(e) => e.preventDefault()}
+                    />
+                  ) : (
+                    <>
+                      <MessageSquare className="h-4 w-4 flex-shrink-0" />
+                      <span className="flex-1 truncate text-sm">
+                        {conversation.title || '新对话'}
+                      </span>
+                      {hoveredId === conversation.id && (
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={(e) => handleStartEdit(conversation.id, conversation.title, e)}
+                          >
+                            <Edit2 className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-destructive"
+                            onClick={(e) => handleDelete(conversation.id, e)}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
       </nav>
 
       {/* User Section */}

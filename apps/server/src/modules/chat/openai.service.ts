@@ -20,6 +20,9 @@ export interface ChatOptions {
   model?: string;
   temperature?: number;
   maxTokens?: number;
+  topP?: number;
+  frequencyPenalty?: number;
+  presencePenalty?: number;
   stream?: boolean;
 }
 
@@ -35,13 +38,23 @@ export class OpenAIService {
   }
 
   async chat(messages: ChatMessage[], options: ChatOptions = {}) {
-    const { model = 'gpt-4', temperature = 0.7, maxTokens = 2048 } = options;
+    const {
+      model = 'gpt-4o',
+      temperature = 0.9,
+      maxTokens = 4096,
+      topP = 0.95,
+      frequencyPenalty = 0.2,
+      presencePenalty = 0.2,
+    } = options;
 
     const response = await this.openai.chat.completions.create({
       model,
       messages: messages as ChatCompletionMessageParam[],
       temperature,
       max_tokens: maxTokens,
+      top_p: topP,
+      frequency_penalty: frequencyPenalty,
+      presence_penalty: presencePenalty,
     });
 
     return {
@@ -51,13 +64,23 @@ export class OpenAIService {
   }
 
   async *chatStream(messages: ChatMessage[], options: ChatOptions = {}) {
-    const { model = 'gpt-4', temperature = 0.7, maxTokens = 2048 } = options;
+    const {
+      model = 'gpt-4o',
+      temperature = 0.9,
+      maxTokens = 4096,
+      topP = 0.95,
+      frequencyPenalty = 0.2,
+      presencePenalty = 0.2,
+    } = options;
 
     const stream = await this.openai.chat.completions.create({
       model,
       messages: messages as ChatCompletionMessageParam[],
       temperature,
       max_tokens: maxTokens,
+      top_p: topP,
+      frequency_penalty: frequencyPenalty,
+      presence_penalty: presencePenalty,
       stream: true,
     });
 

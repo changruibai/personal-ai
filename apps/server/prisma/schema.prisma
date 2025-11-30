@@ -35,9 +35,9 @@ model AIAssistant {
   description String?
   avatar      String?
   systemPrompt String  @map("system_prompt")
-  model       String   @default("gpt-4")
-  temperature Float    @default(0.7)
-  maxTokens   Int      @default(2048) @map("max_tokens")
+  model       String   @default("gpt-4o")
+  temperature Float    @default(0.9)
+  maxTokens   Int      @default(4096) @map("max_tokens")
   skills      String?  // 技能配置 JSON 字符串
   isDefault   Boolean  @default(false) @map("is_default")
   createdAt   DateTime @default(now()) @map("created_at")

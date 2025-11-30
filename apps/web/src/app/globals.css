@@ -90,8 +90,79 @@
 }
 
 /* 打字机效果 */
-.typing-cursor::after {
-  content: '▊';
-  @apply animate-pulse text-primary;
+.typing-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background-color: hsl(var(--primary));
+  margin-left: 2px;
+  animation: blink 1s infinite;
+  vertical-align: text-bottom;
 }
 
+@keyframes blink {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0;
+  }
+}
+
+/* Markdown 内容样式优化 */
+.markdown-content {
+  @apply text-foreground;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+  @apply font-semibold;
+}
+
+.markdown-content code {
+  @apply bg-muted px-1.5 py-0.5 rounded text-sm font-mono;
+}
+
+.markdown-content pre {
+  @apply my-4 overflow-x-auto;
+}
+
+.markdown-content pre code {
+  @apply bg-transparent p-0 text-sm;
+}
+
+.markdown-content a {
+  @apply text-primary hover:underline;
+}
+
+.markdown-content blockquote {
+  @apply border-l-4 border-primary/30 pl-4 italic my-4;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  @apply my-4;
+}
+
+.markdown-content table {
+  @apply w-full border-collapse my-4;
+}
+
+.markdown-content img {
+  @apply max-w-full h-auto rounded-lg;
+}
+
+/* 代码高亮主题适配 */
+.markdown-content pre[class*="language-"] {
+  @apply !m-0 !rounded-lg;
+}
+
+/* 确保代码块在暗色模式下也有合适的背景 */
+.dark .markdown-content pre,
+.dark .markdown-content code {
+  @apply bg-muted/50;
+}

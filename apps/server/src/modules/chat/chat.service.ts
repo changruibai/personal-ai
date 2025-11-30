@@ -121,9 +121,9 @@ export class ChatService {
 
     // 调用AI
     const aiResponse = await this.openaiService.chat(messages, {
-      model: conversation.assistant?.model || 'gpt-4',
-      temperature: conversation.assistant?.temperature || 0.7,
-      maxTokens: conversation.assistant?.maxTokens || 2048,
+      model: conversation.assistant?.model || 'gpt-4o',
+      temperature: conversation.assistant?.temperature || 0.9,
+      maxTokens: conversation.assistant?.maxTokens || 4096,
     });
 
     // 保存AI回复
@@ -138,10 +138,12 @@ export class ChatService {
 
     // 更新对话时间和标题
     if (conversation.messages.length === 0) {
+      // 为首次消息生成智能标题
+      const title = this.generateConversationTitle(dto.content);
       await this.prisma.conversation.update({
         where: { id: conversationId },
         data: {
-          title: dto.content.slice(0, 50),
+          title,
           updatedAt: new Date(),
         },
       });
@@ -226,9 +228,9 @@ export class ChatService {
     // 流式调用AI
     let fullContent = '';
     for await (const chunk of this.openaiService.chatStream(messages, {
-      model: conversation.assistant?.model || 'gpt-4',
-      temperature: conversation.assistant?.temperature || 0.7,
-      maxTokens: conversation.assistant?.maxTokens || 2048,
+      model: conversation.assistant?.model || 'gpt-4o',
+      temperature: conversation.assistant?.temperature || 0.9,
+      maxTokens: conversation.assistant?.maxTokens || 4096,
     })) {
       fullContent += chunk;
       yield chunk;
@@ -243,10 +245,58 @@ export class ChatService {
       },
     });
 
-    // 更新对话
-    await this.prisma.conversation.update({
+    // 更新对话时间和标题
+    if (conversation.messages.length === 0) {
+      // 为首次消息生成智能标题
+      const title = this.generateConversationTitle(dto.content);
+      await this.prisma.conversation.update({
+        where: { id: conversationId },
+        data: {
+          title,
+          updatedAt: new Date(),
+        },
+      });
+    } else {
+      await this.prisma.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: new Date() },
+      });
+    }
+  }
+
+  // 生成会话标题
+  private generateConversationTitle(content: string): string {
+    // 清理内容：去除多余空白字符
+    const cleaned = content.trim().replace(/\s+/g, ' ');
+
+    // 如果内容很短，直接使用
+    if (cleaned.length <= 30) {
+      return cleaned;
+    }
+
+    // 尝试提取第一句话
+    const firstSentence = cleaned.match(/^[^。！？.!?]+[。！？.!?]?/);
+    if (firstSentence && firstSentence[0].length <= 50) {
+      return firstSentence[0];
+    }
+
+    // 截取前30个字符并添加省略号
+    return cleaned.slice(0, 30) + '...';
+  }
+
+  // 更新对话标题
+  async updateConversationTitle(conversationId: string, userId: string, title: string) {
+    const conversation = await this.prisma.conversation.findFirst({
+      where: { id: conversationId, userId },
+    });
+
+    if (!conversation) {
+      throw new NotFoundException('对话不存在');
+    }
+
+    return this.prisma.conversation.update({
       where: { id: conversationId },
-      data: { updatedAt: new Date() },
+      data: { title },
     });
   }
 }

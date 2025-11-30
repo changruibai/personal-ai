@@ -3,22 +3,22 @@
 import type { FC } from 'react';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Bot, User, Loader2, MessageSquare, Trash2, Plus } from 'lucide-react';
+import { Bot, User, Loader2, MessageSquare, Trash2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { chatApi } from '@/lib/api';
 import { useChatStore, type Message, type Conversation } from '@/store/chat';
 import { useToast } from '@/components/ui/use-toast';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import MarkdownRenderer from '@/components/chat/markdown-renderer';
+import MarkdownEditor from '@/components/chat/markdown-editor';
 
 const ChatPage: FC = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const searchParams = useSearchParams();
 
   const {
     currentConversationId,
@@ -32,6 +32,14 @@ const ChatPage: FC = () => {
 
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
+
+  // 从 URL 参数中读取对话 ID
+  useEffect(() => {
+    const id = searchParams?.get('id');
+    if (id) {
+      setCurrentConversation(id);
+    }
+  }, [searchParams, setCurrentConversation]);
 
   // 获取对话列表
   const { data: conversations = [] } = useQuery<Conversation[]>({
@@ -63,6 +71,7 @@ const ChatPage: FC = () => {
   }, [currentConversation]);
 
   // 创建新对话
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const createConversation = useMutation({
     mutationFn: () => chatApi.createConversation({}),
     onSuccess: (res) => {
@@ -99,7 +108,8 @@ const ChatPage: FC = () => {
       // 流式发送消息
       let fullContent = '';
       try {
-        for await (const chunk of chatApi.sendMessageStream(convId, content, (chunk) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        for await (const _chunk of chatApi.sendMessageStream(convId ?? '', content, (chunk) => {
           appendStreamContent(chunk);
           fullContent += chunk;
         })) {
@@ -165,20 +175,11 @@ const ChatPage: FC = () => {
   }, [messages, streamingContent, scrollToBottom]);
 
   // 处理发送
-  const handleSend = () => {
+  const handleSend = useCallback(() => {
     if (!input.trim() || sendMessage.isPending) return;
     sendMessage.mutate(input.trim());
     setInput('');
-    textareaRef.current?.focus();
-  };
-
-  // 处理键盘事件
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
+  }, [input, sendMessage]);
 
   return (
     <div className="flex h-full">
@@ -274,13 +275,12 @@ const ChatPage: FC = () => {
                       )}
                     >
                       {message.role === 'assistant' ? (
-                        <div className="prose prose-sm dark:prose-invert max-w-none">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {message.content}
-                          </ReactMarkdown>
-                        </div>
+                        <MarkdownRenderer content={message.content} />
                       ) : (
-                        <p className="whitespace-pre-wrap">{message.content}</p>
+                        <MarkdownRenderer
+                          content={message.content}
+                          className="text-primary-foreground"
+                        />
                       )}
                     </div>
 
@@ -305,11 +305,9 @@ const ChatPage: FC = () => {
                   </div>
                   <div className="max-w-[80%] rounded-2xl bg-muted px-4 py-3">
                     {streamingContent ? (
-                      <div className="prose prose-sm dark:prose-invert max-w-none">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {streamingContent}
-                        </ReactMarkdown>
-                        <span className="typing-cursor" />
+                      <div className="relative">
+                        <MarkdownRenderer content={streamingContent} />
+                        <span className="typing-cursor ml-1" />
                       </div>
                     ) : (
                       <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -342,29 +340,14 @@ const ChatPage: FC = () => {
         {/* 输入区域 */}
         <div className="border-t border-border p-4">
           <div className="mx-auto max-w-3xl">
-            <div className="relative">
-              <Textarea
-                ref={textareaRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="输入消息... (Enter发送, Shift+Enter换行)"
-                className="max-h-[200px] min-h-[56px] resize-none pr-14"
-                disabled={sendMessage.isPending}
-              />
-              <Button
-                size="icon"
-                className="absolute bottom-2 right-2"
-                onClick={handleSend}
-                disabled={!input.trim() || sendMessage.isPending}
-              >
-                {sendMessage.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
+            <MarkdownEditor
+              value={input}
+              onChange={setInput}
+              onSend={handleSend}
+              disabled={sendMessage.isPending}
+              isSending={sendMessage.isPending}
+              placeholder="输入消息... 支持 Markdown 格式"
+            />
             <p className="mt-2 text-center text-xs text-muted-foreground">
               AI生成的内容仅供参考，请自行判断准确性
             </p>
