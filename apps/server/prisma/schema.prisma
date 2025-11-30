@@ -73,6 +73,11 @@ model Message {
   conversationId String   @map("conversation_id")
   role           String   // user, assistant, system
   content        String
+  messageType    String   @default("text") @map("message_type") // text, image, video
+  imageUrl       String?  @map("image_url") // 图像URL
+  imageProvider  String?  @map("image_provider") // replicate, huggingface
+  imageModel     String?  @map("image_model") // 使用的图像模型
+  metadata       String?  // 额外元数据 JSON 字符串（如图像尺寸、生成参数等）
   tokenCount     Int?     @map("token_count")
   createdAt      DateTime @default(now()) @map("created_at")
 

@@ -174,3 +174,30 @@ export const promptApi = {
   copy: (id: string) => api.post(`/prompts/${id}/copy`),
 };
 
+// Image Generation API
+export const imageApi = {
+  generate: (data: {
+    prompt: string;
+    provider: 'replicate' | 'huggingface';
+    size?: '512x512' | '512x768' | '768x512' | '1024x1024';
+    negativePrompt?: string;
+    numImages?: number;
+    guidanceScale?: number;
+    steps?: number;
+    seed?: number;
+  }) => api.post('/image/generate', data),
+  generateInConversation: (data: {
+    conversationId: string;
+    prompt: string;
+    provider: 'replicate' | 'huggingface';
+    size?: '512x512' | '512x768' | '768x512' | '1024x1024';
+    negativePrompt?: string;
+    numImages?: number;
+    guidanceScale?: number;
+    steps?: number;
+    seed?: number;
+  }) => api.post('/image/generate-in-conversation', data),
+  getModels: (provider: 'replicate' | 'huggingface') =>
+    api.get('/image/models', { params: { provider } }),
+};
+

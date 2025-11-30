@@ -14,6 +14,7 @@ import { UserModule } from './modules/user/user.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { AssistantModule } from './modules/assistant/assistant.module';
 import { PromptModule } from './modules/prompt/prompt.module';
+import { ImageModule } from './modules/image/image.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { PromptModule } from './modules/prompt/prompt.module';
     ChatModule,
     AssistantModule,
     PromptModule,
+    ImageModule,
   ],
 })
 export class AppModule {}
