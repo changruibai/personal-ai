@@ -40,6 +40,7 @@ interface ChatState {
   setStreaming: (isStreaming: boolean) => void;
   appendStreamContent: (content: string) => void;
   resetStreamContent: () => void;
+  reset: () => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
@@ -59,5 +60,12 @@ export const useChatStore = create<ChatState>((set) => ({
     })),
 
   resetStreamContent: () => set({ streamingContent: '' }),
+
+  // 重置所有状态（用于退出登录）
+  reset: () => set({
+    currentConversationId: null,
+    isStreaming: false,
+    streamingContent: '',
+  }),
 }));
 

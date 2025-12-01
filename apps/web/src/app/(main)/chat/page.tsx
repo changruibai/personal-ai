@@ -5,7 +5,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, User, Loader2, MessageSquare, Trash2, Plus } from 'lucide-react';
+import { Bot, User, Loader2, MessageSquare, Trash2, Plus, Lightbulb } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { chatApi } from '@/lib/api';
@@ -32,6 +32,7 @@ const ChatPage: FC = () => {
 
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
+  const [relatedQuestions, setRelatedQuestions] = useState<string[]>([]);
 
   // 从 URL 参数中读取对话 ID
   useEffect(() => {
@@ -106,19 +107,31 @@ const ChatPage: FC = () => {
       };
       setMessages((prev) => [...prev, userMessage]);
 
-      // 初始化流式状态
+      // 初始化流式状态，清空之前的相关问题
       setStreaming(true);
       resetStreamContent();
+      setRelatedQuestions([]);
 
       // 流式发送消息
       let fullContent = '';
       try {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        for await (const _chunk of chatApi.sendMessageStream(convId ?? '', content, (chunk) => {
-          appendStreamContent(chunk);
-          fullContent += chunk;
-        })) {
-          // chunk已经在onChunk回调中处理
+        for await (const chunk of chatApi.sendMessageStream(
+          convId ?? '',
+          content,
+          // onChunk 回调：处理聊天内容
+          (textChunk) => {
+            appendStreamContent(textChunk);
+            fullContent += textChunk;
+          },
+          // onRelatedQuestions 回调：处理相关问题
+          (questions) => {
+            setRelatedQuestions(questions);
+          },
+        )) {
+          // chunk 已经在回调中处理
+          if (chunk.type === 'content') {
+            // 内容已在 onChunk 回调中处理
+          }
         }
 
         // 流式完成后，添加AI回复消息
@@ -186,6 +199,16 @@ const ChatPage: FC = () => {
     setInput('');
   }, [input, sendMessage]);
 
+  // 处理点击相关问题
+  const handleRelatedQuestionClick = useCallback(
+    (question: string) => {
+      if (sendMessage.isPending) return;
+      setRelatedQuestions([]); // 清空相关问题
+      sendMessage.mutate(question);
+    },
+    [sendMessage],
+  );
+
   return (
     <div className="flex h-full">
       {/* 对话列表侧边栏 */}
@@ -218,7 +241,8 @@ const ChatPage: FC = () => {
               <MessageSquare className="h-4 w-4 flex-shrink-0" />
               <div className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium">{conv.title || '新对话'}</span>
-                {conv.assistant && (
+                {/* 非默认助手才显示助手名称 */}
+                {conv.assistant && !conv.assistant.isDefault && (
                   <span className="block truncate text-xs text-muted-foreground">
                     {conv.assistant.name}
                   </span>
@@ -246,8 +270,8 @@ const ChatPage: FC = () => {
 
       {/* 聊天主区域 */}
       <div className="flex flex-1 flex-col">
-        {/* 顶部助手信息栏 */}
-        {assistant && (
+        {/* 顶部助手信息栏 - 非默认助手才显示 */}
+        {assistant && !assistant.isDefault && (
           <div className="border-b border-border bg-card/50 px-6 py-3">
             <div className="flex items-center gap-3">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
@@ -357,6 +381,41 @@ const ChatPage: FC = () => {
                   </div>
                   <div className="rounded-2xl bg-muted px-4 py-3">
                     <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                </motion.div>
+              )}
+
+              {/* 相关问题推荐 */}
+              {relatedQuestions.length > 0 && !isStreaming && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-4"
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    <Lightbulb className="h-4 w-4 text-orange-500" />
+                    <span className="text-sm font-medium text-muted-foreground">相关问题</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {relatedQuestions.map((question, index) => (
+                      <motion.button
+                        key={index}
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: index * 0.1 }}
+                        onClick={() => handleRelatedQuestionClick(question)}
+                        disabled={sendMessage.isPending}
+                        className={cn(
+                          'group flex items-center gap-2 rounded-full border border-border bg-background/50 px-4 py-2 text-sm transition-all',
+                          'hover:border-primary/50 hover:bg-primary/5 hover:shadow-sm',
+                          'disabled:cursor-not-allowed disabled:opacity-50',
+                        )}
+                      >
+                        <span className="text-muted-foreground group-hover:text-foreground">
+                          {question}
+                        </span>
+                      </motion.button>
+                    ))}
                   </div>
                 </motion.div>
               )}

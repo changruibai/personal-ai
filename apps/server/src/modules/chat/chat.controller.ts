@@ -96,7 +96,13 @@ export class ChatController {
         user.id,
         dto,
       )) {
-        res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
+        if (chunk.type === 'content') {
+          // 发送聊天内容
+          res.write(`data: ${JSON.stringify({ content: chunk.data })}\n\n`);
+        } else if (chunk.type === 'relatedQuestions') {
+          // 发送相关问题
+          res.write(`data: ${JSON.stringify({ relatedQuestions: chunk.data })}\n\n`);
+        }
       }
       res.write('data: [DONE]\n\n');
     } catch (error) {

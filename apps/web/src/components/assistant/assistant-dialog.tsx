@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { Loader2, ChevronDown, ChevronUp, Sparkles, Code, Search } from 'lucide-react';
+import { Loader2, ChevronDown, ChevronUp, Sparkles, Code, Search, HelpCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,6 +31,10 @@ const assistantSchema = z.object({
       webSearch: z.boolean().optional(),
     })
     .optional(),
+  // 相关问题配置
+  relatedQuestionsEnabled: z.boolean().optional(),
+  relatedQuestionsMode: z.enum(['llm', 'template', 'disabled']).optional(),
+  relatedQuestionsCount: z.number().min(1).max(5).optional(),
 });
 
 type AssistantFormData = z.infer<typeof assistantSchema>;
@@ -49,6 +53,10 @@ interface Assistant {
     codeExecution?: boolean;
     webSearch?: boolean;
   };
+  // 相关问题配置
+  relatedQuestionsEnabled?: boolean;
+  relatedQuestionsMode?: 'llm' | 'template' | 'disabled';
+  relatedQuestionsCount?: number;
 }
 
 interface AssistantDialogProps {
@@ -69,6 +77,7 @@ export const AssistantDialog: FC<AssistantDialogProps> = ({ open, onOpenChange, 
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors },
   } = useForm<AssistantFormData>({
     resolver: zodResolver(assistantSchema),
@@ -85,8 +94,14 @@ export const AssistantDialog: FC<AssistantDialogProps> = ({ open, onOpenChange, 
         codeExecution: false,
         webSearch: false,
       },
+      relatedQuestionsEnabled: true,
+      relatedQuestionsMode: 'llm',
+      relatedQuestionsCount: 3,
     },
   });
+
+  // 监听相关问题启用状态
+  const relatedQuestionsEnabled = watch('relatedQuestionsEnabled');
 
   useEffect(() => {
     if (assistant) {
@@ -103,6 +118,9 @@ export const AssistantDialog: FC<AssistantDialogProps> = ({ open, onOpenChange, 
           codeExecution: false,
           webSearch: false,
         },
+        relatedQuestionsEnabled: assistant.relatedQuestionsEnabled ?? true,
+        relatedQuestionsMode: assistant.relatedQuestionsMode ?? 'llm',
+        relatedQuestionsCount: assistant.relatedQuestionsCount ?? 3,
       });
     } else {
       reset({
@@ -118,6 +136,9 @@ export const AssistantDialog: FC<AssistantDialogProps> = ({ open, onOpenChange, 
           codeExecution: false,
           webSearch: false,
         },
+        relatedQuestionsEnabled: true,
+        relatedQuestionsMode: 'llm',
+        relatedQuestionsCount: 3,
       });
     }
   }, [assistant, reset]);
@@ -350,6 +371,62 @@ export const AssistantDialog: FC<AssistantDialogProps> = ({ open, onOpenChange, 
                       </div>
                     </div>
                   </label>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 相关问题推荐配置 */}
+          <div className="border-t pt-4">
+            <div className="flex items-center gap-3 rounded-lg p-3">
+              <HelpCircle className="h-5 w-5 text-orange-500" />
+              <div className="flex-1">
+                <div className="font-medium">相关问题推荐</div>
+                <div className="text-xs text-muted-foreground">
+                  AI 回复后自动生成相关的后续问题，帮助深入了解主题
+                </div>
+              </div>
+              <label className="relative inline-flex cursor-pointer items-center">
+                <input
+                  type="checkbox"
+                  {...register('relatedQuestionsEnabled')}
+                  disabled={isLoading}
+                  className="peer sr-only"
+                />
+                <div className="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none dark:border-gray-600 dark:bg-gray-700" />
+              </label>
+            </div>
+
+            {relatedQuestionsEnabled && (
+              <div className="mt-4 space-y-4 rounded-lg border p-4">
+                <div className="space-y-2">
+                  <Label>生成方式</Label>
+                  <select
+                    {...register('relatedQuestionsMode')}
+                    disabled={isLoading}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  >
+                    <option value="llm">AI 智能生成（推荐）</option>
+                    <option value="template">关键词模板匹配</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    AI 智能生成效果更好但会消耗额外 Token，关键词模板速度快且免费
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>生成数量</Label>
+                  <select
+                    {...register('relatedQuestionsCount', { valueAsNumber: true })}
+                    disabled={isLoading}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  >
+                    <option value={1}>1 个问题</option>
+                    <option value={2}>2 个问题</option>
+                    <option value={3}>3 个问题（推荐）</option>
+                    <option value={4}>4 个问题</option>
+                    <option value={5}>5 个问题</option>
+                  </select>
                 </div>
               </div>
             )}

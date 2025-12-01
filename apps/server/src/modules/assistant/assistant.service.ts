@@ -29,6 +29,9 @@ export class AssistantService {
         maxTokens: dto.maxTokens || 4096,
         skills: dto.skills ? JSON.stringify(dto.skills) : null,
         isDefault: dto.isDefault || false,
+        relatedQuestionsEnabled: dto.relatedQuestionsEnabled ?? true,
+        relatedQuestionsMode: dto.relatedQuestionsMode || 'llm',
+        relatedQuestionsCount: dto.relatedQuestionsCount ?? 3,
       },
     });
   }
@@ -106,6 +109,9 @@ export class AssistantService {
         maxTokens: original.maxTokens,
         skills: original.skills,
         isDefault: false,
+        relatedQuestionsEnabled: original.relatedQuestionsEnabled,
+        relatedQuestionsMode: original.relatedQuestionsMode,
+        relatedQuestionsCount: original.relatedQuestionsCount,
       },
     });
   }

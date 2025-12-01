@@ -8,6 +8,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Loader2 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,6 +26,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 const LoginPage: FC = () => {
   const router = useRouter();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { setAuth } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -41,6 +43,10 @@ const LoginPage: FC = () => {
     try {
       const response = await authApi.login(data);
       const { user, token } = response.data;
+      
+      // 清除之前用户的缓存数据
+      queryClient.clear();
+      
       setAuth(user, token);
       toast({
         title: '登录成功',

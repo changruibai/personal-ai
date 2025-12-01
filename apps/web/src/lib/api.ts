@@ -64,6 +64,7 @@ export const chatApi = {
     conversationId: string,
     content: string,
     onChunk?: (chunk: string) => void,
+    onRelatedQuestions?: (questions: string[]) => void,
   ) {
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -115,9 +116,15 @@ export const chatApi = {
               if (parsed.error) {
                 throw new Error(parsed.error);
               }
+              // 处理聊天内容
               if (parsed.content) {
                 onChunk?.(parsed.content);
-                yield parsed.content;
+                yield { type: 'content', data: parsed.content };
+              }
+              // 处理相关问题
+              if (parsed.relatedQuestions) {
+                onRelatedQuestions?.(parsed.relatedQuestions);
+                yield { type: 'relatedQuestions', data: parsed.relatedQuestions };
               }
             } catch (e) {
               // 忽略解析错误，继续处理下一行

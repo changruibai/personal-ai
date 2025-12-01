@@ -40,6 +40,10 @@ model AIAssistant {
   maxTokens   Int      @default(4096) @map("max_tokens")
   skills      String?  // 技能配置 JSON 字符串
   isDefault   Boolean  @default(false) @map("is_default")
+  // 相关问题推荐配置
+  relatedQuestionsEnabled Boolean @default(true) @map("related_questions_enabled")
+  relatedQuestionsMode    String  @default("llm") @map("related_questions_mode") // llm | template | disabled
+  relatedQuestionsCount   Int     @default(3) @map("related_questions_count") // 生成问题数量 1-5
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 

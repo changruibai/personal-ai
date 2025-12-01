@@ -95,4 +95,33 @@ export class CreateAssistantDto {
   @IsOptional()
   @IsBoolean()
   isDefault?: boolean;
+
+  @ApiProperty({
+    example: true,
+    description: '是否启用相关问题推荐',
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  relatedQuestionsEnabled?: boolean;
+
+  @ApiProperty({
+    example: 'llm',
+    description: '相关问题生成方式: llm | template | disabled',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  relatedQuestionsMode?: string;
+
+  @ApiProperty({
+    example: 3,
+    description: '生成相关问题数量 (1-5)',
+    required: false,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(5)
+  relatedQuestionsCount?: number;
 }

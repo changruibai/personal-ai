@@ -1,23 +1,47 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OpenAIService, ChatMessage } from './openai.service';
+import { RelatedQuestionsService, RelatedQuestionsConfig, RelatedQuestionsMode } from './related-questions.service';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { SendMessageDto } from './dto/send-message.dto';
+import { DEFAULT_ASSISTANT_CONFIG } from '../../constants/default-assistant';
 
 @Injectable()
 export class ChatService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly openaiService: OpenAIService,
+    private readonly relatedQuestionsService: RelatedQuestionsService,
   ) {}
 
   // 创建新对话
   async createConversation(userId: string, dto: CreateConversationDto) {
+    let assistantId = dto.assistantId;
+
+    // 如果没有指定助手，尝试使用用户的默认助手
+    if (!assistantId) {
+      const defaultAssistant = await this.prisma.aIAssistant.findFirst({
+        where: { userId, isDefault: true },
+      });
+      assistantId = defaultAssistant?.id;
+
+      // 如果用户没有默认助手，自动创建一个
+      if (!assistantId) {
+        const newDefaultAssistant = await this.prisma.aIAssistant.create({
+          data: {
+            userId,
+            ...DEFAULT_ASSISTANT_CONFIG,
+          },
+        });
+        assistantId = newDefaultAssistant.id;
+      }
+    }
+
     return this.prisma.conversation.create({
       data: {
         userId,
         title: dto.title || '新对话',
-        assistantId: dto.assistantId,
+        assistantId,
       },
       include: {
         assistant: true,
@@ -162,9 +186,33 @@ export class ChatService {
       });
     }
 
+    // 生成相关问题
+    const relatedQuestionsConfig = this.getRelatedQuestionsConfig(conversation.assistant);
+    const allMessages = [...messages, { role: 'assistant' as const, content: aiResponse.content }];
+    const relatedQuestions = await this.relatedQuestionsService.generateRelatedQuestions(
+      allMessages,
+      relatedQuestionsConfig,
+    );
+
     return {
       userMessage,
       assistantMessage,
+      relatedQuestions,
+    };
+  }
+
+  /**
+   * 获取助手的相关问题配置
+   */
+  private getRelatedQuestionsConfig(assistant: {
+    relatedQuestionsEnabled?: boolean;
+    relatedQuestionsMode?: string;
+    relatedQuestionsCount?: number;
+  } | null): RelatedQuestionsConfig {
+    return {
+      enabled: assistant?.relatedQuestionsEnabled ?? true,
+      mode: (assistant?.relatedQuestionsMode as RelatedQuestionsMode) ?? 'llm',
+      count: assistant?.relatedQuestionsCount ?? 3,
     };
   }
 
@@ -185,8 +233,8 @@ export class ChatService {
     return { success: true };
   }
 
-  // 流式发送消息
-  async *sendMessageStream(conversationId: string, userId: string, dto: SendMessageDto) {
+  // 流式发送消息 - 返回类型包含内容和相关问题
+  async *sendMessageStream(conversationId: string, userId: string, dto: SendMessageDto): AsyncGenerator<{ type: 'content' | 'relatedQuestions'; data: string | string[] }> {
     // 验证对话存在
     const conversation = await this.prisma.conversation.findFirst({
       where: { id: conversationId, userId },
@@ -241,7 +289,7 @@ export class ChatService {
       maxTokens: conversation.assistant?.maxTokens || 4096,
     })) {
       fullContent += chunk;
-      yield chunk;
+      yield { type: 'content', data: chunk };
     }
 
     // 保存完整回复
@@ -269,6 +317,19 @@ export class ChatService {
         where: { id: conversationId },
         data: { updatedAt: new Date() },
       });
+    }
+
+    // 生成相关问题
+    const relatedQuestionsConfig = this.getRelatedQuestionsConfig(conversation.assistant);
+    const allMessages = [...messages, { role: 'assistant' as const, content: fullContent }];
+    const relatedQuestions = await this.relatedQuestionsService.generateRelatedQuestions(
+      allMessages,
+      relatedQuestionsConfig,
+    );
+
+    // 发送相关问题
+    if (relatedQuestions.length > 0) {
+      yield { type: 'relatedQuestions', data: relatedQuestions };
     }
   }
 

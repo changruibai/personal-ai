@@ -4,6 +4,7 @@ import type { FC } from 'react';
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Bot,
   Settings,
@@ -13,6 +14,7 @@ import {
   Menu,
   X,
   Sparkles,
+  Wand2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -24,6 +26,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { AssistantDialog } from '@/components/assistant/assistant-dialog';
+import { assistantApi } from '@/lib/api';
+import { useChatStore } from '@/store/chat';
 
 const menuItems = [
   { icon: Bot, label: 'AI助手', href: '/assistants' },
@@ -31,13 +36,52 @@ const menuItems = [
   { icon: Settings, label: '设置', href: '/settings' },
 ];
 
+interface Assistant {
+  id: string;
+  name: string;
+  description?: string;
+  systemPrompt: string;
+  model: string;
+  temperature: number;
+  maxTokens: number;
+  isDefault: boolean;
+  skills?: {
+    imageGeneration?: boolean;
+    codeExecution?: boolean;
+    webSearch?: boolean;
+  };
+  relatedQuestionsEnabled?: boolean;
+  relatedQuestionsMode?: 'llm' | 'template' | 'disabled';
+  relatedQuestionsCount?: number;
+}
+
 export const Header: FC = () => {
   const pathname = usePathname();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user, logout } = useAuthStore();
+  const { reset: resetChatStore } = useChatStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showAssistantDialog, setShowAssistantDialog] = useState(false);
+
+  // 获取默认助手
+  const { data: defaultAssistant } = useQuery<Assistant | null>({
+    queryKey: ['defaultAssistant'],
+    queryFn: async () => {
+      try {
+        const res = await assistantApi.getDefault();
+        return res.data;
+      } catch {
+        return null;
+      }
+    },
+  });
 
   const handleLogout = () => {
+    // 清除所有缓存数据
+    queryClient.clear();
+    // 重置聊天状态
+    resetChatStore();
     logout();
     router.push('/login');
   };
@@ -97,6 +141,11 @@ export const Header: FC = () => {
                   <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
                 </div>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setShowAssistantDialog(true)}>
+                  <Wand2 className="mr-2 h-4 w-4" />
+                  修改默认助手
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} className="text-destructive">
                   <LogOut className="mr-2 h-4 w-4" />
                   退出登录
@@ -149,6 +198,20 @@ export const Header: FC = () => {
             </nav>
             
             <div className="border-t border-border p-2">
+              {/* 移动端修改默认助手按钮 */}
+              <button
+                onClick={() => {
+                  setShowAssistantDialog(true);
+                  setMobileMenuOpen(false);
+                }}
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+              >
+                <Wand2 className="h-5 w-5" />
+                <span>修改默认助手</span>
+              </button>
+            </div>
+
+            <div className="border-t border-border p-2">
               <div className="flex items-center gap-3 rounded-lg px-3 py-2">
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
                   <User className="h-4 w-4 text-primary" />
@@ -170,6 +233,13 @@ export const Header: FC = () => {
           </div>
         )}
       </header>
+
+      {/* 默认助手编辑对话框 */}
+      <AssistantDialog
+        open={showAssistantDialog}
+        onOpenChange={setShowAssistantDialog}
+        assistant={defaultAssistant || null}
+      />
     </>
   );
 };
