@@ -5,7 +5,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, User, Loader2, MessageSquare, Trash2, Plus, Sparkles } from 'lucide-react';
+import { Bot, User, Loader2, MessageSquare, Trash2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { chatApi } from '@/lib/api';
@@ -13,7 +13,6 @@ import { useChatStore, type Message, type Conversation } from '@/store/chat';
 import { useToast } from '@/components/ui/use-toast';
 import MarkdownRenderer from '@/components/chat/markdown-renderer';
 import MarkdownEditor from '@/components/chat/markdown-editor';
-import { ImageGenerationDialog } from '@/components/image/image-generation-dialog';
 
 const ChatPage: FC = () => {
   const { toast } = useToast();
@@ -33,7 +32,6 @@ const ChatPage: FC = () => {
 
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
-  const [showImageDialog, setShowImageDialog] = useState(false);
 
   // 从 URL 参数中读取对话 ID
   useEffect(() => {
@@ -95,6 +93,8 @@ const ChatPage: FC = () => {
         const res = await chatApi.createConversation({});
         convId = res.data.id;
         setCurrentConversation(convId);
+        // 立即刷新对话列表，让左侧历史会话显示新对话
+        queryClient.invalidateQueries({ queryKey: ['conversations'] });
       }
 
       // 立即添加用户消息到界面
@@ -185,16 +185,6 @@ const ChatPage: FC = () => {
     sendMessage.mutate(input.trim());
     setInput('');
   }, [input, sendMessage]);
-
-  // 处理图像生成成功
-  const handleImagesGenerated = useCallback(() => {
-    // 图像生成成功后刷新对话
-    if (currentConversationId) {
-      queryClient.invalidateQueries({ queryKey: ['conversation', currentConversationId] });
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
-    }
-    setShowImageDialog(false);
-  }, [currentConversationId, queryClient]);
 
   return (
     <div className="flex h-full">
@@ -379,18 +369,6 @@ const ChatPage: FC = () => {
         {/* 输入区域 */}
         <div className="border-t border-border p-4">
           <div className="mx-auto max-w-3xl">
-            <div className="mb-3 flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-2"
-                onClick={() => setShowImageDialog(true)}
-                disabled={sendMessage.isPending}
-              >
-                <Sparkles className="h-4 w-4 text-purple-500" />
-                AI 图像生成
-              </Button>
-            </div>
             <MarkdownEditor
               value={input}
               onChange={setInput}
@@ -405,14 +383,6 @@ const ChatPage: FC = () => {
           </div>
         </div>
       </div>
-
-      {/* 图像生成对话框 */}
-      <ImageGenerationDialog
-        open={showImageDialog}
-        onOpenChange={setShowImageDialog}
-        conversationId={currentConversationId || undefined}
-        onImagesGenerated={handleImagesGenerated}
-      />
     </div>
   );
 };
