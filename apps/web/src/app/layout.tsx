@@ -18,6 +18,11 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 export const metadata: Metadata = {
   title: 'Personal AI - 你的个性化AI助手',
   description: '与AI对话，个性化定制你的专属AI助手',
+  icons: {
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+    ],
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
