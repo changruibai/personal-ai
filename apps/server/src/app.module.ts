@@ -15,6 +15,7 @@ import { ChatModule } from './modules/chat/chat.module';
 import { AssistantModule } from './modules/assistant/assistant.module';
 import { PromptModule } from './modules/prompt/prompt.module';
 import { ImageModule } from './modules/image/image.module';
+import { HealthModule } from './modules/health/health.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { ImageModule } from './modules/image/image.module';
     AssistantModule,
     PromptModule,
     ImageModule,
+    HealthModule,
   ],
 })
 export class AppModule {}
