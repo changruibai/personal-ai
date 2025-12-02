@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OpenAIService, ChatMessage } from './openai.service';
 import { RelatedQuestionsService, RelatedQuestionsConfig, RelatedQuestionsMode } from './related-questions.service';
+import { UserProfileService } from '../user/user-profile.service';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 import { DEFAULT_ASSISTANT_CONFIG } from '../../constants/default-assistant';
@@ -12,6 +13,8 @@ export class ChatService {
     private readonly prisma: PrismaService,
     private readonly openaiService: OpenAIService,
     private readonly relatedQuestionsService: RelatedQuestionsService,
+    @Inject(forwardRef(() => UserProfileService))
+    private readonly userProfileService: UserProfileService,
   ) {}
 
   // 创建新对话
@@ -117,6 +120,9 @@ export class ChatService {
       throw new NotFoundException('对话不存在');
     }
 
+    // 检测是否为身份询问问题
+    const isIdentityQuestion = this.userProfileService.isIdentityQuestion(dto.content);
+
     // 保存用户消息
     const userMessage = await this.prisma.message.create({
       data: {
@@ -126,45 +132,63 @@ export class ChatService {
       },
     });
 
-    // 构建消息历史
-    const messages: ChatMessage[] = [];
+    let aiResponseContent: string;
+    let tokenCount: number | undefined;
 
-    // 添加系统提示词
-    if (conversation.assistant?.systemPrompt) {
-      messages.push({
-        role: 'system',
-        content: conversation.assistant.systemPrompt,
+    if (isIdentityQuestion) {
+      // 如果是身份询问，直接返回用户画像
+      aiResponseContent = await this.userProfileService.generateProfileResponse(userId);
+    } else {
+      // 构建消息历史
+      const messages: ChatMessage[] = [];
+
+      // 添加系统提示词（包含用户画像上下文）
+      const systemPrompt = await this.buildSystemPromptWithProfile(
+        conversation.assistant?.systemPrompt || '',
+        userId,
+      );
+      if (systemPrompt) {
+        messages.push({
+          role: 'system',
+          content: systemPrompt,
+        });
+      }
+
+      // 添加历史消息
+      conversation.messages.forEach((msg) => {
+        messages.push({
+          role: msg.role as 'user' | 'assistant' | 'system',
+          content: msg.content,
+        });
       });
+
+      // 添加当前用户消息
+      messages.push({
+        role: 'user',
+        content: dto.content,
+      });
+
+      // 调用AI
+      const aiResponse = await this.openaiService.chat(messages, {
+        model: conversation.assistant?.model || 'gpt-4o',
+        temperature: conversation.assistant?.temperature || 0.9,
+        maxTokens: conversation.assistant?.maxTokens || 4096,
+      });
+
+      aiResponseContent = aiResponse.content;
+      tokenCount = aiResponse.usage?.total_tokens;
+
+      // 异步分析用户画像（不阻塞响应）
+      this.analyzeUserProfileAsync(userId, messages);
     }
-
-    // 添加历史消息
-    conversation.messages.forEach((msg) => {
-      messages.push({
-        role: msg.role as 'user' | 'assistant' | 'system',
-        content: msg.content,
-      });
-    });
-
-    // 添加当前用户消息
-    messages.push({
-      role: 'user',
-      content: dto.content,
-    });
-
-    // 调用AI
-    const aiResponse = await this.openaiService.chat(messages, {
-      model: conversation.assistant?.model || 'gpt-4o',
-      temperature: conversation.assistant?.temperature || 0.9,
-      maxTokens: conversation.assistant?.maxTokens || 4096,
-    });
 
     // 保存AI回复
     const assistantMessage = await this.prisma.message.create({
       data: {
         conversationId,
         role: 'assistant',
-        content: aiResponse.content,
-        tokenCount: aiResponse.usage?.total_tokens,
+        content: aiResponseContent,
+        tokenCount,
       },
     });
 
@@ -188,7 +212,10 @@ export class ChatService {
 
     // 生成相关问题
     const relatedQuestionsConfig = this.getRelatedQuestionsConfig(conversation.assistant);
-    const allMessages = [...messages, { role: 'assistant' as const, content: aiResponse.content }];
+    const allMessages: ChatMessage[] = [
+      { role: 'user', content: dto.content },
+      { role: 'assistant', content: aiResponseContent },
+    ];
     const relatedQuestions = await this.relatedQuestionsService.generateRelatedQuestions(
       allMessages,
       relatedQuestionsConfig,
@@ -199,6 +226,83 @@ export class ChatService {
       assistantMessage,
       relatedQuestions,
     };
+  }
+
+  /**
+   * 构建包含用户画像的系统提示词
+   */
+  private async buildSystemPromptWithProfile(
+    baseSystemPrompt: string,
+    userId: string,
+  ): Promise<string> {
+    const profile = await this.userProfileService.getUserProfile(userId);
+
+    if (!profile || !profile.profession) {
+      return baseSystemPrompt;
+    }
+
+    const profileContext = this.formatProfileForContext(profile);
+    
+    return `${baseSystemPrompt}
+
+## 用户画像信息
+${profileContext}
+
+请根据用户画像信息，提供更加个性化和针对性的回答。适当调整回答的专业程度和表达方式以匹配用户特点。`;
+  }
+
+  /**
+   * 格式化用户画像为上下文
+   */
+  private formatProfileForContext(profile: {
+    profession?: string;
+    expertise?: string[];
+    interests?: string[];
+    knowledgeLevel?: string;
+    communicationStyle?: string;
+    goals?: string[];
+  }): string {
+    const parts: string[] = [];
+
+    if (profile.profession) {
+      parts.push(`- 职业身份：${profile.profession}`);
+    }
+    if (profile.expertise && profile.expertise.length > 0) {
+      parts.push(`- 专业领域：${profile.expertise.join('、')}`);
+    }
+    if (profile.interests && profile.interests.length > 0) {
+      parts.push(`- 兴趣爱好：${profile.interests.join('、')}`);
+    }
+    if (profile.knowledgeLevel) {
+      const levelMap: Record<string, string> = {
+        beginner: '初学者',
+        intermediate: '中级',
+        expert: '专家',
+      };
+      parts.push(`- 知识水平：${levelMap[profile.knowledgeLevel] || profile.knowledgeLevel}`);
+    }
+    if (profile.communicationStyle) {
+      parts.push(`- 沟通风格偏好：${profile.communicationStyle}`);
+    }
+    if (profile.goals && profile.goals.length > 0) {
+      parts.push(`- 目标需求：${profile.goals.join('、')}`);
+    }
+
+    return parts.join('\n');
+  }
+
+  /**
+   * 异步分析用户画像
+   */
+  private analyzeUserProfileAsync(userId: string, messages: ChatMessage[]): void {
+    // 使用 setImmediate 确保不阻塞响应
+    setImmediate(async () => {
+      try {
+        await this.userProfileService.analyzeAndUpdateProfile(userId, messages);
+      } catch (error) {
+        console.error('Failed to analyze user profile:', error);
+      }
+    });
   }
 
   /**
@@ -250,6 +354,9 @@ export class ChatService {
       throw new NotFoundException('对话不存在');
     }
 
+    // 检测是否为身份询问问题
+    const isIdentityQuestion = this.userProfileService.isIdentityQuestion(dto.content);
+
     // 保存用户消息
     await this.prisma.message.create({
       data: {
@@ -259,37 +366,56 @@ export class ChatService {
       },
     });
 
-    // 构建消息历史
-    const messages: ChatMessage[] = [];
-
-    if (conversation.assistant?.systemPrompt) {
-      messages.push({
-        role: 'system',
-        content: conversation.assistant.systemPrompt,
-      });
-    }
-
-    conversation.messages.forEach((msg) => {
-      messages.push({
-        role: msg.role as 'user' | 'assistant' | 'system',
-        content: msg.content,
-      });
-    });
-
-    messages.push({
-      role: 'user',
-      content: dto.content,
-    });
-
-    // 流式调用AI
     let fullContent = '';
-    for await (const chunk of this.openaiService.chatStream(messages, {
-      model: conversation.assistant?.model || 'gpt-4o',
-      temperature: conversation.assistant?.temperature || 0.9,
-      maxTokens: conversation.assistant?.maxTokens || 4096,
-    })) {
-      fullContent += chunk;
-      yield { type: 'content', data: chunk };
+
+    if (isIdentityQuestion) {
+      // 如果是身份询问，直接返回用户画像
+      fullContent = await this.userProfileService.generateProfileResponse(userId);
+      // 模拟流式输出
+      const chunks = fullContent.match(/.{1,20}/g) || [fullContent];
+      for (const chunk of chunks) {
+        yield { type: 'content', data: chunk };
+      }
+    } else {
+      // 构建消息历史
+      const messages: ChatMessage[] = [];
+
+      // 添加系统提示词（包含用户画像上下文）
+      const systemPrompt = await this.buildSystemPromptWithProfile(
+        conversation.assistant?.systemPrompt || '',
+        userId,
+      );
+      if (systemPrompt) {
+        messages.push({
+          role: 'system',
+          content: systemPrompt,
+        });
+      }
+
+      conversation.messages.forEach((msg) => {
+        messages.push({
+          role: msg.role as 'user' | 'assistant' | 'system',
+          content: msg.content,
+        });
+      });
+
+      messages.push({
+        role: 'user',
+        content: dto.content,
+      });
+
+      // 流式调用AI
+      for await (const chunk of this.openaiService.chatStream(messages, {
+        model: conversation.assistant?.model || 'gpt-4o',
+        temperature: conversation.assistant?.temperature || 0.9,
+        maxTokens: conversation.assistant?.maxTokens || 4096,
+      })) {
+        fullContent += chunk;
+        yield { type: 'content', data: chunk };
+      }
+
+      // 异步分析用户画像（不阻塞响应）
+      this.analyzeUserProfileAsync(userId, messages);
     }
 
     // 保存完整回复
@@ -321,7 +447,10 @@ export class ChatService {
 
     // 生成相关问题
     const relatedQuestionsConfig = this.getRelatedQuestionsConfig(conversation.assistant);
-    const allMessages = [...messages, { role: 'assistant' as const, content: fullContent }];
+    const allMessages: ChatMessage[] = [
+      { role: 'user', content: dto.content },
+      { role: 'assistant', content: fullContent },
+    ];
     const relatedQuestions = await this.relatedQuestionsService.generateRelatedQuestions(
       allMessages,
       relatedQuestionsConfig,

@@ -5,8 +5,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 // 用户表
@@ -16,6 +16,9 @@ model User {
   password  String
   name      String?
   avatar    String?
+  // 用户画像 - JSON 格式存储 AI 分析的用户特征
+  profile   String?  // JSON: { profession, interests, expertise, personality, goals, context }
+  profileUpdatedAt DateTime? @map("profile_updated_at")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

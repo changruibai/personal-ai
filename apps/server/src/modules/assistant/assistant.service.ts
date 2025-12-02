@@ -69,9 +69,18 @@ export class AssistantService {
       });
     }
 
+    // 构建更新数据，处理 skills 字段序列化
+    const { skills, ...restDto } = dto;
+    const updateData: Record<string, unknown> = { ...restDto };
+    
+    // skills 需要转为 JSON 字符串
+    if (skills !== undefined) {
+      updateData.skills = skills ? JSON.stringify(skills) : null;
+    }
+
     return this.prisma.aIAssistant.update({
       where: { id: assistant.id },
-      data: dto,
+      data: updateData,
     });
   }
 
