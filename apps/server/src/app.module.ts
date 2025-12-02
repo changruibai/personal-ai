@@ -16,8 +16,10 @@ import { AssistantModule } from './modules/assistant/assistant.module';
 import { PromptModule } from './modules/prompt/prompt.module';
 import { ImageModule } from './modules/image/image.module';
 import { HealthModule } from './modules/health/health.module';
+import { AppController } from './app.controller';
 
 @Module({
+  controllers: [AppController],
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
