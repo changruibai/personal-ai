@@ -48,11 +48,14 @@ interface Assistant {
   temperature: number;
   maxTokens: number;
   isDefault: boolean;
-  skills?: {
-    imageGeneration?: boolean;
-    codeExecution?: boolean;
-    webSearch?: boolean;
-  };
+  // skills 可能是 JSON 字符串（从后端返回）或对象（前端使用）
+  skills?:
+    | string
+    | {
+        imageGeneration?: boolean;
+        codeExecution?: boolean;
+        webSearch?: boolean;
+      };
   // 相关问题配置
   relatedQuestionsEnabled?: boolean;
   relatedQuestionsMode?: 'llm' | 'template' | 'disabled';
@@ -78,7 +81,7 @@ export const AssistantDialog: FC<AssistantDialogProps> = ({ open, onOpenChange, 
     handleSubmit,
     reset,
     watch,
-    formState: { errors },
+    formState: { errors, isSubmitting },
   } = useForm<AssistantFormData>({
     resolver: zodResolver(assistantSchema),
     defaultValues: {
@@ -105,6 +108,23 @@ export const AssistantDialog: FC<AssistantDialogProps> = ({ open, onOpenChange, 
 
   useEffect(() => {
     if (assistant) {
+      // 解析 skills 字段，如果是字符串则解析为对象
+      let parsedSkills = {
+        imageGeneration: false,
+        codeExecution: false,
+        webSearch: false,
+      };
+
+      if (assistant.skills) {
+        try {
+          // 如果是字符串，尝试解析
+          parsedSkills =
+            typeof assistant.skills === 'string' ? JSON.parse(assistant.skills) : assistant.skills;
+        } catch (e) {
+          console.error('Failed to parse skills:', e);
+        }
+      }
+
       reset({
         name: assistant.name,
         description: assistant.description || '',
@@ -113,11 +133,7 @@ export const AssistantDialog: FC<AssistantDialogProps> = ({ open, onOpenChange, 
         temperature: assistant.temperature,
         maxTokens: assistant.maxTokens,
         isDefault: assistant.isDefault,
-        skills: assistant.skills || {
-          imageGeneration: false,
-          codeExecution: false,
-          webSearch: false,
-        },
+        skills: parsedSkills,
         relatedQuestionsEnabled: assistant.relatedQuestionsEnabled ?? true,
         relatedQuestionsMode: assistant.relatedQuestionsMode ?? 'llm',
         relatedQuestionsCount: assistant.relatedQuestionsCount ?? 3,
@@ -180,6 +196,7 @@ export const AssistantDialog: FC<AssistantDialogProps> = ({ open, onOpenChange, 
     mutationFn: (data: AssistantFormData) => assistantApi.update(assistant!.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['assistants'] });
+      queryClient.invalidateQueries({ queryKey: ['defaultAssistant'] });
       toast({ title: 'AI助手更新成功' });
       onOpenChange(false);
     },
@@ -189,12 +206,23 @@ export const AssistantDialog: FC<AssistantDialogProps> = ({ open, onOpenChange, 
   });
 
   const onSubmit = (data: AssistantFormData) => {
+    console.log('Form submitted with data:', data);
+    console.log('Is editing:', isEditing);
+    console.log('Form errors:', errors);
+
     if (isEditing) {
       updateMutation.mutate(data);
     } else {
       createMutation.mutate(data);
     }
   };
+
+  // 添加表单错误监听
+  useEffect(() => {
+    if (Object.keys(errors).length > 0) {
+      console.log('Form validation errors:', errors);
+    }
+  }, [errors]);
 
   const isLoading = createMutation.isPending || updateMutation.isPending;
 
@@ -432,6 +460,20 @@ export const AssistantDialog: FC<AssistantDialogProps> = ({ open, onOpenChange, 
             )}
           </div>
 
+          {/* 显示全局表单错误 */}
+          {Object.keys(errors).length > 0 && (
+            <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3">
+              <p className="text-sm font-medium text-destructive">请检查以下错误：</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-destructive">
+                {Object.entries(errors).map(([field, error]) => (
+                  <li key={field}>
+                    {field}: {error?.message?.toString() || '验证失败'}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* 操作按钮 */}
           <div className="flex justify-end gap-3 pt-4">
             <Button
@@ -442,8 +484,8 @@ export const AssistantDialog: FC<AssistantDialogProps> = ({ open, onOpenChange, 
             >
               取消
             </Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Button type="submit" disabled={isLoading || isSubmitting}>
+              {(isLoading || isSubmitting) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isEditing ? '保存' : '创建'}
             </Button>
           </div>

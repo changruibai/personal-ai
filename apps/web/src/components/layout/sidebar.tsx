@@ -45,6 +45,17 @@ interface Assistant {
   temperature: number;
   maxTokens: number;
   isDefault: boolean;
+  // skills 可能是 JSON 字符串（从后端返回）或对象
+  skills?:
+    | string
+    | {
+        imageGeneration?: boolean;
+        codeExecution?: boolean;
+        webSearch?: boolean;
+      };
+  relatedQuestionsEnabled?: boolean;
+  relatedQuestionsMode?: 'llm' | 'template' | 'disabled';
+  relatedQuestionsCount?: number;
 }
 
 export const Sidebar: FC = () => {

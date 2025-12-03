@@ -375,7 +375,7 @@ const ChatPage: FC = () => {
       </div>
 
       {/* 输入区域 */}
-      <div className="border-t border-border p-4">
+      <div className="p-4">
         <div className="mx-auto max-w-3xl">
           <MarkdownEditor
             value={input}
