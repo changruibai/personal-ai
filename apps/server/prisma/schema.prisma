@@ -76,17 +76,18 @@ model Conversation {
 
 // 消息表
 model Message {
-  id             String   @id @default(cuid())
-  conversationId String   @map("conversation_id")
-  role           String   // user, assistant, system
-  content        String
-  messageType    String   @default("text") @map("message_type") // text, image, video
-  imageUrl       String?  @map("image_url") // 图像URL
-  imageProvider  String?  @map("image_provider") // replicate, huggingface
-  imageModel     String?  @map("image_model") // 使用的图像模型
-  metadata       String?  // 额外元数据 JSON 字符串（如图像尺寸、生成参数等）
-  tokenCount     Int?     @map("token_count")
-  createdAt      DateTime @default(now()) @map("created_at")
+  id               String   @id @default(cuid())
+  conversationId   String   @map("conversation_id")
+  role             String   // user, assistant, system
+  content          String
+  messageType      String   @default("text") @map("message_type") // text, image, video
+  imageUrl         String?  @map("image_url") // 图像URL
+  imageProvider    String?  @map("image_provider") // replicate, huggingface
+  imageModel       String?  @map("image_model") // 使用的图像模型
+  metadata         String?  // 额外元数据 JSON 字符串（如图像尺寸、生成参数等）
+  tokenCount       Int?     @map("token_count")
+  relatedQuestions String?  @map("related_questions") // 相关问题 JSON 字符串数组（仅 assistant 消息）
+  createdAt        DateTime @default(now()) @map("created_at")
 
   // 关联
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)

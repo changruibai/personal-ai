@@ -9,41 +9,71 @@ import {
   Bot,
   MessageSquare,
   Settings,
-  Sparkles,
   FileText,
   LogOut,
   ChevronLeft,
+  ChevronRight,
   Plus,
   User,
   Trash2,
   Edit2,
+  Sparkles,
+  Wand2,
+  ChevronUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/store/auth';
-import { useChatStore, type Conversation } from '@/store/chat';
-import { chatApi } from '@/lib/api';
+import { useChatStore, type ConversationSummary } from '@/store/chat';
+import { chatApi, assistantApi } from '@/lib/api';
+import { AssistantDialog } from '@/components/assistant/assistant-dialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
-const menuItems = [
-  { icon: MessageSquare, label: '对话', href: '/chat' },
-  { icon: Bot, label: 'AI助手', href: '/assistants' },
-  { icon: FileText, label: 'Prompt库', href: '/prompts' },
-  { icon: Settings, label: '设置', href: '/settings' },
-];
+interface Assistant {
+  id: string;
+  name: string;
+  description?: string;
+  systemPrompt: string;
+  model: string;
+  temperature: number;
+  maxTokens: number;
+  isDefault: boolean;
+}
 
 export const Sidebar: FC = () => {
   const pathname = usePathname();
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user, logout } = useAuthStore();
-  const { currentConversationId, setCurrentConversation } = useChatStore();
+  const { reset: resetChatStore } = useChatStore();
   const [collapsed, setCollapsed] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [showAssistantDialog, setShowAssistantDialog] = useState(false);
+
+  // 获取默认助手
+  const { data: defaultAssistant } = useQuery<Assistant | null>({
+    queryKey: ['defaultAssistant'],
+    queryFn: async () => {
+      try {
+        const res = await assistantApi.getDefault();
+        return res.data;
+      } catch {
+        return null;
+      }
+    },
+  });
 
   // 使用 React Query 获取会话列表
-  const { data: conversations = [] } = useQuery<Conversation[]>({
+  const { data: conversations = [] } = useQuery<ConversationSummary[]>({
     queryKey: ['conversations'],
     queryFn: async () => {
       const res = await chatApi.getConversations();
@@ -55,12 +85,8 @@ export const Sidebar: FC = () => {
   const deleteConversation = useMutation({
     mutationFn: (id: string) => chatApi.deleteConversation(id),
     onSuccess: (_, id) => {
-      // 刷新会话列表
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
-      
-      // 如果删除的是当前会话，清空当前会话 ID
-      if (currentConversationId === id) {
-        setCurrentConversation(null);
+      if (pathname === `/chat/${id}`) {
         router.push('/chat');
       }
     },
@@ -73,15 +99,6 @@ export const Sidebar: FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
       setEditingId(null);
-    },
-  });
-
-  // 创建新对话 mutation
-  const createConversation = useMutation({
-    mutationFn: () => chatApi.createConversation({}),
-    onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
-      router.push(`/chat?id=${res.data.id}`);
     },
   });
 
@@ -105,182 +122,252 @@ export const Sidebar: FC = () => {
     updateTitle.mutate({ id, title: editTitle });
   };
 
-  // 创建新对话
+  // 新建对话
   const handleNewChat = () => {
-    createConversation.mutate();
+    router.push('/chat');
+  };
+
+  // 退出登录
+  const handleLogout = () => {
+    queryClient.clear();
+    resetChatStore();
+    logout();
+    router.push('/login');
   };
 
   return (
-    <aside
-      className={cn(
-        'flex flex-col h-full bg-card border-r border-border transition-all duration-300',
-        collapsed ? 'w-16' : 'w-64'
-      )}
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-border">
-        <Link href="/chat" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
-            <Sparkles className="w-5 h-5 text-primary-foreground" />
-          </div>
-          {!collapsed && (
-            <span className="font-bold text-lg">Personal AI</span>
-          )}
-        </Link>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          onClick={() => setCollapsed(!collapsed)}
-        >
-          <ChevronLeft
-            className={cn(
-              'h-4 w-4 transition-transform',
-              collapsed && 'rotate-180'
-            )}
-          />
-        </Button>
-      </div>
-
-      {/* New Chat Button */}
-      <div className="p-3">
-        <Button
-          onClick={handleNewChat}
-          className={cn('w-full gap-2', collapsed && 'px-0')}
-          variant="default"
-        >
-          <Plus className="h-4 w-4" />
-          {!collapsed && '新对话'}
-        </Button>
-      </div>
-
-      {/* Navigation */}
-      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-        {menuItems.map((item) => {
-          const isActive = pathname.startsWith(item.href);
-          return (
-            <Link key={item.href} href={item.href}>
-              <div
-                className={cn(
-                  'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors',
-                  isActive
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                )}
-              >
-                <item.icon className="h-5 w-5 flex-shrink-0" />
-                {!collapsed && <span>{item.label}</span>}
-              </div>
-            </Link>
-          );
-        })}
-
-        {/* 会话列表 */}
-        {!collapsed && pathname.startsWith('/chat') && (
-          <div className="mt-4 space-y-1">
-            <div className="px-3 py-2 text-xs font-semibold text-muted-foreground">
-              最近对话
-            </div>
-            {conversations.map((conversation) => (
-              <Link
-                key={conversation.id}
-                href={`/chat?id=${conversation.id}`}
-                onMouseEnter={() => setHoveredId(conversation.id)}
-                onMouseLeave={() => setHoveredId(null)}
-              >
-                <div
-                  className={cn(
-                    'group flex items-center gap-2 px-3 py-2 rounded-lg transition-colors',
-                    currentConversationId === conversation.id
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                  )}
-                >
-                  {editingId === conversation.id ? (
-                    <input
-                      type="text"
-                      value={editTitle}
-                      onChange={(e) => setEditTitle(e.target.value)}
-                      onBlur={() => handleSaveTitle(conversation.id)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          handleSaveTitle(conversation.id);
-                        } else if (e.key === 'Escape') {
-                          setEditingId(null);
-                        }
-                      }}
-                      className="flex-1 bg-transparent border-b border-primary outline-none"
-                      autoFocus
-                      onClick={(e) => e.preventDefault()}
-                    />
-                  ) : (
-                    <>
-                      <MessageSquare className="h-4 w-4 flex-shrink-0" />
-                      <span className="flex-1 truncate text-sm">
-                        {conversation.title || '新对话'}
-                      </span>
-                      {hoveredId === conversation.id && (
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={(e) => handleStartEdit(conversation.id, conversation.title, e)}
-                          >
-                            <Edit2 className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-destructive"
-                            onClick={(e) => handleDelete(conversation.id, e)}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              </Link>
-            ))}
-          </div>
+    <>
+      <aside
+        className={cn(
+          'relative flex h-full flex-col border-r border-border bg-card/50 transition-all duration-300',
+          collapsed ? 'w-16' : 'w-72',
         )}
-      </nav>
-
-      {/* User Section */}
-      <div className="p-3 border-t border-border">
+      >
+        {/* Header */}
         <div
           className={cn(
-            'flex items-center gap-3 p-2 rounded-lg',
-            collapsed ? 'justify-center' : ''
+            'flex items-center border-b border-border p-4',
+            collapsed ? 'justify-center' : 'justify-between',
           )}
         >
-          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-            <User className="w-4 h-4 text-primary" />
-          </div>
-          {!collapsed && (
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">
-                {user?.name || user?.email}
-              </p>
-              <p className="text-xs text-muted-foreground truncate">
-                {user?.email}
-              </p>
+          <Link href="/chat" className="flex items-center gap-2">
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary">
+              <Sparkles className="h-5 w-5 text-primary-foreground" />
             </div>
+            {!collapsed && <span className="text-lg font-bold">Personal AI</span>}
+          </Link>
+          {!collapsed && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 flex-shrink-0"
+              onClick={() => setCollapsed(true)}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
           )}
+        </div>
+
+        {/* 折叠状态下的展开按钮 */}
+        {collapsed && (
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 flex-shrink-0"
-            onClick={logout}
-            title="退出登录"
+            className="absolute -right-3 top-16 z-10 h-6 w-6 rounded-full border border-border bg-background shadow-sm"
+            onClick={() => setCollapsed(false)}
           >
-            <LogOut className="h-4 w-4" />
+            <ChevronRight className="h-3 w-3" />
           </Button>
+        )}
+
+        {/* New Chat Button */}
+        <div className={cn('p-3', collapsed && 'flex justify-center')}>
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={handleNewChat}
+                  className={cn('w-full gap-2', collapsed && 'h-10 w-10 justify-center p-0')}
+                  variant="default"
+                  size={collapsed ? 'icon' : 'default'}
+                >
+                  <Plus className={cn('flex-shrink-0', collapsed ? 'h-5 w-5' : 'h-4 w-4')} />
+                  {!collapsed && '新对话'}
+                </Button>
+              </TooltipTrigger>
+              {collapsed && (
+                <TooltipContent side="right">
+                  <p>新对话</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
         </div>
-      </div>
-    </aside>
+
+        {/* 历史会话列表 - 折叠时隐藏 */}
+        {!collapsed && (
+          <div className="flex-1 overflow-y-auto px-3 pb-3">
+            <div className="px-2 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              历史会话
+            </div>
+            <div className="space-y-1">
+              {conversations.map((conversation) => (
+                <Link
+                  key={conversation.id}
+                  href={`/chat/${conversation.id}`}
+                  onMouseEnter={() => setHoveredId(conversation.id)}
+                  onMouseLeave={() => setHoveredId(null)}
+                >
+                  <div
+                    className={cn(
+                      'group flex items-center gap-2 rounded-lg px-3 py-2.5 transition-colors',
+                      pathname === `/chat/${conversation.id}`
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+                    )}
+                  >
+                    {editingId === conversation.id ? (
+                      <input
+                        type="text"
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        onBlur={() => handleSaveTitle(conversation.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            handleSaveTitle(conversation.id);
+                          } else if (e.key === 'Escape') {
+                            setEditingId(null);
+                          }
+                        }}
+                        className="flex-1 border-b border-primary bg-transparent text-sm outline-none"
+                        autoFocus
+                        onClick={(e) => e.preventDefault()}
+                      />
+                    ) : (
+                      <>
+                        <MessageSquare className="h-4 w-4 flex-shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <span className="block truncate text-sm">
+                            {conversation.title || '新对话'}
+                          </span>
+                          {conversation.assistant && !conversation.assistant.isDefault && (
+                            <span className="block truncate text-xs text-muted-foreground/70">
+                              {conversation.assistant.name}
+                            </span>
+                          )}
+                        </div>
+                        {hoveredId === conversation.id && (
+                          <div className="flex items-center gap-0.5">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={(e) =>
+                                handleStartEdit(conversation.id, conversation.title, e)
+                              }
+                            >
+                              <Edit2 className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-destructive hover:text-destructive"
+                              onClick={(e) => handleDelete(conversation.id, e)}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </Link>
+              ))}
+
+              {conversations.length === 0 && (
+                <div className="py-8 text-center text-sm text-muted-foreground">暂无对话记录</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 折叠时的占位区域 */}
+        {collapsed && <div className="flex-1" />}
+
+        {/* 底部功能区 */}
+        <div className="border-t border-border p-2">
+          {/* 用户信息 - 点击显示菜单 */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className={cn(
+                  'flex w-full cursor-pointer items-center gap-2 rounded-lg p-2 transition-colors hover:bg-accent',
+                  collapsed ? 'flex-col justify-center' : '',
+                )}
+              >
+                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary/10">
+                  <User className="h-4 w-4 text-primary" />
+                </div>
+                {!collapsed && (
+                  <>
+                    <div className="min-w-0 flex-1 text-left">
+                      <p className="truncate text-sm font-medium">{user?.name || user?.email}</p>
+                      <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
+                    </div>
+                    <ChevronUp className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                  </>
+                )}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              side={collapsed ? 'right' : 'top'}
+              align={collapsed ? 'start' : 'start'}
+              className="w-56"
+            >
+              <DropdownMenuItem
+                className="cursor-pointer"
+                onClick={() => setShowAssistantDialog(true)}
+              >
+                <Wand2 className="mr-2 h-4 w-4" />
+                修改默认助手
+              </DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer" asChild>
+                <Link href="/assistants">
+                  <Bot className="mr-2 h-4 w-4" />
+                  AI助手管理
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer" asChild>
+                <Link href="/prompts">
+                  <FileText className="mr-2 h-4 w-4" />
+                  Prompt库
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer" asChild>
+                <Link href="/settings">
+                  <Settings className="mr-2 h-4 w-4" />
+                  设置
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="cursor-pointer text-destructive focus:text-destructive"
+                onClick={handleLogout}
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                退出登录
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </aside>
+
+      {/* 默认助手编辑对话框 */}
+      <AssistantDialog
+        open={showAssistantDialog}
+        onOpenChange={setShowAssistantDialog}
+        assistant={defaultAssistant || null}
+      />
+    </>
   );
 };
-

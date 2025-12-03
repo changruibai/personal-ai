@@ -5,9 +5,24 @@ export interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
+  relatedQuestions?: string[] | null; // 相关问题（仅 assistant 消息）
   createdAt: string;
 }
 
+// 列表中使用的简化版 Conversation 类型
+export interface ConversationSummary {
+  id: string;
+  title?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  assistant?: {
+    id: string;
+    name: string;
+    isDefault?: boolean;
+  } | null;
+}
+
+// 详情中使用的完整 Conversation 类型
 export interface Conversation {
   id: string;
   title?: string | null;
@@ -21,7 +36,8 @@ export interface Conversation {
     temperature?: number;
     maxTokens?: number;
     systemPrompt?: string;
-  };
+    isDefault?: boolean;
+  } | null;
   messages: Message[];
   createdAt: string;
   updatedAt: string;

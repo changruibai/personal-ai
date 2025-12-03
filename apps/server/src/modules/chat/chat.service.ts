@@ -52,30 +52,22 @@ export class ChatService {
     });
   }
 
-  // 获取用户所有对话
+  // 获取用户所有对话（只返回关键信息，不返回消息内容）
   async getConversations(userId: string) {
     return this.prisma.conversation.findMany({
       where: { userId },
       orderBy: { updatedAt: 'desc' },
-      include: {
-        // 优化：返回完整的 assistant 信息，避免前端重复请求
+      select: {
+        id: true,
+        title: true,
+        createdAt: true,
+        updatedAt: true,
         assistant: {
           select: {
             id: true,
             name: true,
-            description: true,
-            avatar: true,
-            model: true,
-            temperature: true,
-            maxTokens: true,
-            systemPrompt: true,
-            skills: true,
             isDefault: true,
           },
-        },
-        messages: {
-          take: 1,
-          orderBy: { createdAt: 'desc' },
         },
       },
     });
@@ -182,16 +174,6 @@ export class ChatService {
       this.analyzeUserProfileAsync(userId, messages);
     }
 
-    // 保存AI回复
-    const assistantMessage = await this.prisma.message.create({
-      data: {
-        conversationId,
-        role: 'assistant',
-        content: aiResponseContent,
-        tokenCount,
-      },
-    });
-
     // 更新对话时间和标题
     if (conversation.messages.length === 0) {
       // 为首次消息生成智能标题
@@ -220,6 +202,17 @@ export class ChatService {
       allMessages,
       relatedQuestionsConfig,
     );
+
+    // 保存AI回复（包含相关问题）
+    const assistantMessage = await this.prisma.message.create({
+      data: {
+        conversationId,
+        role: 'assistant',
+        content: aiResponseContent,
+        tokenCount,
+        relatedQuestions: relatedQuestions.length > 0 ? JSON.stringify(relatedQuestions) : null,
+      },
+    });
 
     return {
       userMessage,
@@ -418,15 +411,6 @@ ${profileContext}
       this.analyzeUserProfileAsync(userId, messages);
     }
 
-    // 保存完整回复
-    await this.prisma.message.create({
-      data: {
-        conversationId,
-        role: 'assistant',
-        content: fullContent,
-      },
-    });
-
     // 更新对话时间和标题
     if (conversation.messages.length === 0) {
       // 为首次消息生成智能标题
@@ -455,6 +439,16 @@ ${profileContext}
       allMessages,
       relatedQuestionsConfig,
     );
+
+    // 保存完整回复（包含相关问题）
+    await this.prisma.message.create({
+      data: {
+        conversationId,
+        role: 'assistant',
+        content: fullContent,
+        relatedQuestions: relatedQuestions.length > 0 ? JSON.stringify(relatedQuestions) : null,
+      },
+    });
 
     // 发送相关问题
     if (relatedQuestions.length > 0) {
