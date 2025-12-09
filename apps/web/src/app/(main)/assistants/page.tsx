@@ -102,7 +102,7 @@ const AssistantsPage: FC = () => {
       return res.data;
     },
     onSuccess: (conversation) => {
-      router.push(`/chat?id=${conversation.id}`);
+      router.push(`/chat/${conversation.id}`);
     },
     onError: () => {
       toast({ variant: 'destructive', title: '创建对话失败' });

@@ -1,7 +1,7 @@
 'use client';
 
 import type { FC } from 'react';
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -29,8 +29,8 @@ const ChatDetailPage: FC = () => {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
-  // 流式响应时的临时相关问题（尚未保存到数据库）
-  const [streamingRelatedQuestions, setStreamingRelatedQuestions] = useState<string[]>([]);
+  // 使用 ref 存储流式响应中的相关问题，避免闭包问题
+  const streamingRelatedQuestionsRef = useRef<string[]>([]);
 
   // 复制消息内容
   const handleCopyMessage = useCallback(
@@ -94,22 +94,6 @@ const ChatDetailPage: FC = () => {
     }
   }, [currentConversation]);
 
-  // 获取最后一条 assistant 消息的相关问题
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const lastAssistantRelatedQuestions = useMemo(() => {
-    // 如果正在流式响应，返回临时相关问题
-    if (streamingRelatedQuestions.length > 0) {
-      return streamingRelatedQuestions;
-    }
-    // 否则查找最后一条 assistant 消息的相关问题
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].role === 'assistant' && messages[i].relatedQuestions?.length) {
-        return messages[i].relatedQuestions;
-      }
-    }
-    return [];
-  }, [messages, streamingRelatedQuestions]);
-
   // 发送消息（流式）
   const sendMessage = useMutation({
     mutationFn: async (content: string) => {
@@ -125,7 +109,7 @@ const ChatDetailPage: FC = () => {
       // 初始化流式状态，清空之前的相关问题
       setStreaming(true);
       resetStreamContent();
-      setStreamingRelatedQuestions([]);
+      streamingRelatedQuestionsRef.current = [];
 
       // 流式发送消息
       let fullContent = '';
@@ -140,7 +124,7 @@ const ChatDetailPage: FC = () => {
           },
           // onRelatedQuestions 回调：处理相关问题
           (questions) => {
-            setStreamingRelatedQuestions(questions);
+            streamingRelatedQuestionsRef.current = questions;
           },
         )) {
           // chunk 已经在回调中处理
@@ -150,29 +134,30 @@ const ChatDetailPage: FC = () => {
         }
 
         // 流式完成后，添加AI回复消息（包含相关问题）
+        // 使用 ref 获取最新的相关问题，避免闭包问题
+        const finalRelatedQuestions = streamingRelatedQuestionsRef.current;
         const assistantMessage: Message = {
           id: `assistant-${Date.now()}`,
           role: 'assistant',
           content: fullContent,
-          relatedQuestions:
-            streamingRelatedQuestions.length > 0 ? streamingRelatedQuestions : undefined,
+          relatedQuestions: finalRelatedQuestions.length > 0 ? finalRelatedQuestions : undefined,
           createdAt: new Date().toISOString(),
         };
         setMessages((prev) => [...prev, assistantMessage]);
 
-        // 重置流式状态
+        // 重置流式状态，清空临时相关问题
         setStreaming(false);
         resetStreamContent();
+        streamingRelatedQuestionsRef.current = [];
 
-        // 刷新对话列表和当前对话
+        // 刷新对话列表（不刷新当前对话，避免重绘）
         queryClient.invalidateQueries({ queryKey: ['conversations'] });
-        queryClient.invalidateQueries({ queryKey: ['conversation', conversationId] });
 
         return { success: true };
       } catch (error) {
         setStreaming(false);
         resetStreamContent();
-        setStreamingRelatedQuestions([]);
+        streamingRelatedQuestionsRef.current = [];
         throw error;
       }
     },
@@ -185,7 +170,7 @@ const ChatDetailPage: FC = () => {
       });
       setStreaming(false);
       resetStreamContent();
-      setStreamingRelatedQuestions([]);
+      streamingRelatedQuestionsRef.current = [];
     },
   });
 
@@ -209,7 +194,7 @@ const ChatDetailPage: FC = () => {
   const handleRelatedQuestionClick = useCallback(
     (question: string) => {
       if (sendMessage.isPending) return;
-      setStreamingRelatedQuestions([]); // 清空相关问题
+      streamingRelatedQuestionsRef.current = []; // 清空相关问题
       sendMessage.mutate(question);
     },
     [sendMessage],
@@ -244,7 +229,7 @@ const ChatDetailPage: FC = () => {
 
       // 移除当前 AI 回答（保留用户问题）
       setMessages((prev) => prev.filter((_, index) => index !== assistantIndex));
-      setStreamingRelatedQuestions([]);
+      streamingRelatedQuestionsRef.current = [];
 
       // 开始流式请求新的回答
       setStreaming(true);
@@ -260,7 +245,7 @@ const ChatDetailPage: FC = () => {
             fullContent += textChunk;
           },
           (questions) => {
-            setStreamingRelatedQuestions(questions);
+            streamingRelatedQuestionsRef.current = questions;
           },
         )) {
           if (chunk.type === 'content') {
@@ -269,25 +254,28 @@ const ChatDetailPage: FC = () => {
         }
 
         // 流式完成后，添加新的 AI 回复
+        // 使用 ref 获取最新的相关问题
+        const finalRelatedQuestions = streamingRelatedQuestionsRef.current;
         const newAssistantMessage: Message = {
           id: `assistant-${Date.now()}`,
           role: 'assistant',
           content: fullContent,
-          relatedQuestions:
-            streamingRelatedQuestions.length > 0 ? streamingRelatedQuestions : undefined,
+          relatedQuestions: finalRelatedQuestions.length > 0 ? finalRelatedQuestions : undefined,
           createdAt: new Date().toISOString(),
         };
         setMessages((prev) => [...prev, newAssistantMessage]);
 
+        // 重置流式状态，清空临时相关问题
         setStreaming(false);
         resetStreamContent();
+        streamingRelatedQuestionsRef.current = [];
 
-        // 刷新对话
-        queryClient.invalidateQueries({ queryKey: ['conversation', conversationId] });
+        // 刷新对话列表（不刷新当前对话，避免重绘）
+        queryClient.invalidateQueries({ queryKey: ['conversations'] });
       } catch (error) {
         setStreaming(false);
         resetStreamContent();
-        setStreamingRelatedQuestions([]);
+        streamingRelatedQuestionsRef.current = [];
         const err = error as Error;
         toast({
           variant: 'destructive',
@@ -306,7 +294,6 @@ const ChatDetailPage: FC = () => {
       resetStreamContent,
       appendStreamContent,
       queryClient,
-      streamingRelatedQuestions,
     ],
   );
 
@@ -567,46 +554,6 @@ const ChatDetailPage: FC = () => {
 
             {/* 滚动锚点 */}
             <div ref={messagesEndRef} />
-
-            {/* 流式响应结束后的相关问题推荐 */}
-            <AnimatePresence mode="wait">
-              {streamingRelatedQuestions.length > 0 && !isStreaming && (
-                <motion.div
-                  key="related-questions"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="mt-4"
-                >
-                  <div className="mb-3 flex items-center gap-2">
-                    <Lightbulb className="h-4 w-4 text-orange-500" />
-                    <span className="text-sm font-medium text-muted-foreground">相关问题</span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {streamingRelatedQuestions.map((question, index) => (
-                      <motion.button
-                        key={question}
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: index * 0.05, duration: 0.15 }}
-                        onClick={() => handleRelatedQuestionClick(question)}
-                        disabled={sendMessage.isPending}
-                        className={cn(
-                          'group flex items-center gap-2 rounded-full border border-border bg-background/50 px-4 py-2 text-sm transition-all',
-                          'hover:border-primary/50 hover:bg-primary/5 hover:shadow-sm',
-                          'disabled:cursor-not-allowed disabled:opacity-50',
-                        )}
-                      >
-                        <span className="text-muted-foreground group-hover:text-foreground">
-                          {question}
-                        </span>
-                      </motion.button>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
           </div>
         )}
       </div>

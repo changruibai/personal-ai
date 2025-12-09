@@ -175,7 +175,7 @@ export const AssistantDialog: FC<AssistantDialogProps> = ({ open, onOpenChange, 
             onClick={async () => {
               try {
                 const res = await chatApi.createConversation({ assistantId });
-                router.push(`/chat?id=${res.data.id}`);
+                router.push(`/chat/${res.data.id}`);
               } catch {
                 toast({ variant: 'destructive', title: '创建对话失败' });
               }
