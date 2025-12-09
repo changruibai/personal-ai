@@ -111,5 +111,15 @@ export class ChatController {
       res.end();
     }
   }
+
+  @Post('conversations/:id/messages/save-partial')
+  @ApiOperation({ summary: '保存中断的消息' })
+  async savePartialMessage(
+    @CurrentUser() user: User,
+    @Param('id') conversationId: string,
+    @Body() dto: { content: string },
+  ) {
+    return this.chatService.savePartialMessage(conversationId, user.id, dto.content);
+  }
 }
 

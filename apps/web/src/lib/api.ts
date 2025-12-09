@@ -60,11 +60,14 @@ export const chatApi = {
     api.put(`/chat/conversations/${id}/title`, { title }),
   sendMessage: (conversationId: string, content: string) =>
     api.post(`/chat/conversations/${conversationId}/messages`, { content }),
+  savePartialMessage: (conversationId: string, content: string) =>
+    api.post(`/chat/conversations/${conversationId}/messages/save-partial`, { content }),
   sendMessageStream: async function* (
     conversationId: string,
     content: string,
     onChunk?: (chunk: string) => void,
     onRelatedQuestions?: (questions: string[]) => void,
+    signal?: AbortSignal,
   ) {
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -78,6 +81,7 @@ export const chatApi = {
           ...(token && { Authorization: `Bearer ${token}` }),
         },
         body: JSON.stringify({ content }),
+        signal,
       },
     );
 

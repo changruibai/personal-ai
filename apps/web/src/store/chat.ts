@@ -50,20 +50,24 @@ interface ChatState {
   currentConversationId: string | null;
   isStreaming: boolean;
   streamingContent: string;
+  abortController: AbortController | null;
   
   // UI 状态操作
   setCurrentConversation: (id: string | null) => void;
   setStreaming: (isStreaming: boolean) => void;
   appendStreamContent: (content: string) => void;
   resetStreamContent: () => void;
+  setAbortController: (controller: AbortController | null) => void;
+  stopGeneration: () => void;
   reset: () => void;
 }
 
-export const useChatStore = create<ChatState>((set) => ({
+export const useChatStore = create<ChatState>((set, get) => ({
   // 初始状态
   currentConversationId: null,
   isStreaming: false,
   streamingContent: '',
+  abortController: null,
 
   // UI 状态操作
   setCurrentConversation: (id) => set({ currentConversationId: id }),
@@ -77,11 +81,29 @@ export const useChatStore = create<ChatState>((set) => ({
 
   resetStreamContent: () => set({ streamingContent: '' }),
 
+  setAbortController: (controller) => set({ abortController: controller }),
+
+  // 停止生成 - 只中止请求，状态由 catch 块处理
+  stopGeneration: () => {
+    const { abortController } = get();
+    if (abortController) {
+      abortController.abort();
+      // 不在这里修改状态，让请求的 catch 块来处理状态重置和内容保存
+    }
+  },
+
   // 重置所有状态（用于退出登录）
-  reset: () => set({
-    currentConversationId: null,
-    isStreaming: false,
-    streamingContent: '',
-  }),
+  reset: () => {
+    const { abortController } = get();
+    if (abortController) {
+      abortController.abort();
+    }
+    set({
+      currentConversationId: null,
+      isStreaming: false,
+      streamingContent: '',
+      abortController: null,
+    });
+  },
 }));
 

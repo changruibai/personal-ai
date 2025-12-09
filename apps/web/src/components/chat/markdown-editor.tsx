@@ -5,15 +5,17 @@ import { useState, useRef, memo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import { Send, Loader2 } from 'lucide-react';
+import { Send, Loader2, Square } from 'lucide-react';
 
 interface MarkdownEditorProps {
   value: string;
   onChange: (value: string) => void;
   onSend: () => void;
+  onStop?: () => void;
   placeholder?: string;
   disabled?: boolean;
   isSending?: boolean;
+  isStreaming?: boolean;
   className?: string;
 }
 
@@ -21,9 +23,11 @@ const MarkdownEditor: FC<MarkdownEditorProps> = memo(({
   value,
   onChange,
   onSend,
+  onStop,
   placeholder = '输入消息... 支持 Markdown 格式',
   disabled = false,
   isSending = false,
+  isStreaming = false,
   className,
 }) => {
   const [isComposing, setIsComposing] = useState(false);
@@ -63,18 +67,29 @@ const MarkdownEditor: FC<MarkdownEditorProps> = memo(({
         className="min-h-[120px] max-h-[300px] resize-none pr-14"
         disabled={disabled}
       />
-      <Button
-        size="icon"
-        className="absolute bottom-2 right-2"
-        onClick={onSend}
-        disabled={!value.trim() || disabled || isSending}
-      >
-        {isSending ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <Send className="h-4 w-4" />
-        )}
-      </Button>
+      {isStreaming ? (
+        <Button
+          size="icon"
+          variant="destructive"
+          className="absolute bottom-2 right-2"
+          onClick={onStop}
+        >
+          <Square className="h-4 w-4" />
+        </Button>
+      ) : (
+        <Button
+          size="icon"
+          className="absolute bottom-2 right-2"
+          onClick={onSend}
+          disabled={!value.trim() || disabled || isSending}
+        >
+          {isSending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Send className="h-4 w-4" />
+          )}
+        </Button>
+      )}
     </div>
   );
 });

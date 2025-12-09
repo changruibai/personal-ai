@@ -491,4 +491,33 @@ ${profileContext}
       data: { title },
     });
   }
+
+  // 保存中断的消息（用于用户停止生成时保存已生成的内容）
+  async savePartialMessage(conversationId: string, userId: string, content: string) {
+    // 验证对话存在
+    const conversation = await this.prisma.conversation.findFirst({
+      where: { id: conversationId, userId },
+    });
+
+    if (!conversation) {
+      throw new NotFoundException('对话不存在');
+    }
+
+    // 保存 AI 回复
+    const message = await this.prisma.message.create({
+      data: {
+        conversationId,
+        role: 'assistant',
+        content,
+      },
+    });
+
+    // 更新对话时间
+    await this.prisma.conversation.update({
+      where: { id: conversationId },
+      data: { updatedAt: new Date() },
+    });
+
+    return message;
+  }
 }
