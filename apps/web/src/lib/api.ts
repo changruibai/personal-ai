@@ -140,6 +140,84 @@ export const chatApi = {
       reader.releaseLock();
     }
   },
+  // 编辑消息并重新生成回复（流式）
+  editMessageStream: async function* (
+    conversationId: string,
+    messageId: string,
+    content: string,
+    onChunk?: (chunk: string) => void,
+    onRelatedQuestions?: (questions: string[]) => void,
+    signal?: AbortSignal,
+  ) {
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+
+    const response = await fetch(
+      `${API_BASE_URL}/chat/conversations/${conversationId}/messages/${messageId}/edit`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+        body: JSON.stringify({ content }),
+        signal,
+      },
+    );
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: '请求失败' }));
+      throw new Error(error.message || '请求失败');
+    }
+
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+
+    if (!reader) {
+      throw new Error('无法读取响应流');
+    }
+
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') {
+              return;
+            }
+
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.error) {
+                throw new Error(parsed.error);
+              }
+              if (parsed.content) {
+                onChunk?.(parsed.content);
+                yield { type: 'content', data: parsed.content };
+              }
+              if (parsed.relatedQuestions) {
+                onRelatedQuestions?.(parsed.relatedQuestions);
+                yield { type: 'relatedQuestions', data: parsed.relatedQuestions };
+              }
+            } catch (e) {
+              // 忽略解析错误
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  },
 };
 
 // Assistant API

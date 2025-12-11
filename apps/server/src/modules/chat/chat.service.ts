@@ -492,6 +492,131 @@ ${profileContext}
     });
   }
 
+  // 编辑消息并重新生成 AI 回复（流式）
+  async *editMessageStream(
+    conversationId: string,
+    messageId: string,
+    userId: string,
+    newContent: string,
+  ): AsyncGenerator<{ type: 'content' | 'relatedQuestions'; data: string | string[] }> {
+    // 验证对话存在
+    const conversation = await this.prisma.conversation.findFirst({
+      where: { id: conversationId, userId },
+      include: {
+        assistant: true,
+        messages: {
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+
+    if (!conversation) {
+      throw new NotFoundException('对话不存在');
+    }
+
+    // 找到要编辑的消息
+    const messageIndex = conversation.messages.findIndex((m) => m.id === messageId);
+    if (messageIndex === -1) {
+      throw new NotFoundException('消息不存在');
+    }
+
+    const targetMessage = conversation.messages[messageIndex];
+    if (targetMessage.role !== 'user') {
+      throw new Error('只能编辑用户消息');
+    }
+
+    // 删除该消息之后的所有消息（包括 AI 回复）
+    const messagesAfter = conversation.messages.slice(messageIndex + 1);
+    if (messagesAfter.length > 0) {
+      await this.prisma.message.deleteMany({
+        where: {
+          id: { in: messagesAfter.map((m) => m.id) },
+        },
+      });
+    }
+
+    // 更新用户消息内容
+    await this.prisma.message.update({
+      where: { id: messageId },
+      data: { content: newContent },
+    });
+
+    // 构建消息历史（到编辑的消息为止）
+    const messages: ChatMessage[] = [];
+
+    // 添加系统提示词（包含用户画像上下文）
+    const systemPrompt = await this.buildSystemPromptWithProfile(
+      conversation.assistant?.systemPrompt || '',
+      userId,
+    );
+    if (systemPrompt) {
+      messages.push({
+        role: 'system',
+        content: systemPrompt,
+      });
+    }
+
+    // 添加编辑消息之前的历史消息
+    conversation.messages.slice(0, messageIndex).forEach((msg) => {
+      messages.push({
+        role: msg.role as 'user' | 'assistant' | 'system',
+        content: msg.content,
+      });
+    });
+
+    // 添加编辑后的用户消息
+    messages.push({
+      role: 'user',
+      content: newContent,
+    });
+
+    // 流式调用 AI
+    let fullContent = '';
+    for await (const chunk of this.openaiService.chatStream(messages, {
+      model: conversation.assistant?.model || 'gpt-4o',
+      temperature: conversation.assistant?.temperature || 0.9,
+      maxTokens: conversation.assistant?.maxTokens || 4096,
+    })) {
+      fullContent += chunk;
+      yield { type: 'content', data: chunk };
+    }
+
+    // 异步分析用户画像
+    this.analyzeUserProfileAsync(userId, messages);
+
+    // 更新对话时间
+    await this.prisma.conversation.update({
+      where: { id: conversationId },
+      data: { updatedAt: new Date() },
+    });
+
+    // 生成相关问题
+    const relatedQuestionsConfig = this.getRelatedQuestionsConfig(conversation.assistant);
+    const allMessages: ChatMessage[] = [
+      { role: 'user', content: newContent },
+      { role: 'assistant', content: fullContent },
+    ];
+    const relatedQuestions = await this.relatedQuestionsService.generateRelatedQuestions(
+      allMessages,
+      relatedQuestionsConfig,
+    );
+
+    // 保存 AI 回复
+    await this.prisma.message.create({
+      data: {
+        conversationId,
+        role: 'assistant',
+        content: fullContent,
+        relatedQuestions: relatedQuestions.length > 0 ? JSON.stringify(relatedQuestions) : null,
+      },
+    });
+
+    // 发送相关问题
+    if (relatedQuestions.length > 0) {
+      yield { type: 'relatedQuestions', data: relatedQuestions };
+    }
+  }
+
   // 保存中断的消息（用于用户停止生成时保存已生成的内容）
   async savePartialMessage(conversationId: string, userId: string, content: string) {
     // 验证对话存在

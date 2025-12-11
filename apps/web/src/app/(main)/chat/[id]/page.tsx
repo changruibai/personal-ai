@@ -234,6 +234,128 @@ const ChatDetailPage: FC = () => {
     [sendMessage],
   );
 
+  // 编辑消息：编辑用户消息后重新生成 AI 回复
+  const handleEditMessage = useCallback(
+    async (messageId: string, newContent: string) => {
+      if (sendMessage.isPending || isStreaming || !conversationId) return;
+
+      // 找到要编辑的消息
+      const messageIndex = messages.findIndex((m) => m.id === messageId);
+      if (messageIndex === -1) return;
+
+      // 更新消息内容并删除之后的消息
+      setMessages((prev) => {
+        const newMessages = prev.slice(0, messageIndex);
+        newMessages.push({
+          ...prev[messageIndex],
+          content: newContent,
+        });
+        return newMessages;
+      });
+      streamingRelatedQuestionsRef.current = [];
+
+      // 创建 AbortController
+      const abortController = new AbortController();
+      setAbortController(abortController);
+
+      // 开始流式请求
+      setStreaming(true);
+      resetStreamContent();
+
+      let fullContent = '';
+      try {
+        for await (const chunk of chatApi.editMessageStream(
+          conversationId,
+          messageId,
+          newContent,
+          (textChunk) => {
+            appendStreamContent(textChunk);
+            fullContent += textChunk;
+          },
+          (questions) => {
+            streamingRelatedQuestionsRef.current = questions;
+          },
+          abortController.signal,
+        )) {
+          if (chunk.type === 'content') {
+            // 内容已在回调中处理
+          }
+        }
+
+        // 流式完成后，添加新的 AI 回复
+        const finalRelatedQuestions = streamingRelatedQuestionsRef.current;
+        const newAssistantMessage: Message = {
+          id: `assistant-${Date.now()}`,
+          role: 'assistant',
+          content: fullContent,
+          relatedQuestions: finalRelatedQuestions.length > 0 ? finalRelatedQuestions : undefined,
+          createdAt: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, newAssistantMessage]);
+
+        // 重置流式状态
+        setStreaming(false);
+        resetStreamContent();
+        setAbortController(null);
+        streamingRelatedQuestionsRef.current = [];
+
+        // 刷新对话列表
+        queryClient.invalidateQueries({ queryKey: ['conversations'] });
+        queryClient.invalidateQueries({ queryKey: ['conversation', conversationId] });
+      } catch (error) {
+        // 检查是否是用户主动中止
+        if (error instanceof Error && error.name === 'AbortError') {
+          const contentToSave = fullContent || useChatStore.getState().streamingContent;
+          if (contentToSave) {
+            try {
+              await chatApi.savePartialMessage(conversationId, contentToSave);
+            } catch {
+              console.error('Failed to save partial message');
+            }
+
+            const newAssistantMessage: Message = {
+              id: `assistant-${Date.now()}`,
+              role: 'assistant',
+              content: contentToSave,
+              createdAt: new Date().toISOString(),
+            };
+            setMessages((prev) => [...prev, newAssistantMessage]);
+          }
+          setStreaming(false);
+          resetStreamContent();
+          setAbortController(null);
+          streamingRelatedQuestionsRef.current = [];
+
+          queryClient.invalidateQueries({ queryKey: ['conversations'] });
+          queryClient.invalidateQueries({ queryKey: ['conversation', conversationId] });
+          return;
+        }
+        setStreaming(false);
+        resetStreamContent();
+        setAbortController(null);
+        streamingRelatedQuestionsRef.current = [];
+        const err = error as Error;
+        toast({
+          variant: 'destructive',
+          title: '编辑消息失败',
+          description: err.message || '请稍后再试',
+        });
+      }
+    },
+    [
+      messages,
+      conversationId,
+      sendMessage.isPending,
+      isStreaming,
+      toast,
+      setStreaming,
+      resetStreamContent,
+      appendStreamContent,
+      setAbortController,
+      queryClient,
+    ],
+  );
+
   // 重新回答：只替换当前 AI 回答，不删除用户问题
   const handleRegenerate = useCallback(
     async (assistantMessageId: string) => {
@@ -423,6 +545,8 @@ const ChatDetailPage: FC = () => {
                     message={message}
                     copiedMessageId={copiedMessageId}
                     onCopy={handleCopyMessage}
+                    onEdit={handleEditMessage}
+                    isEditDisabled={sendMessage.isPending || isStreaming}
                   />
                 ) : (
                   <AssistantMessage

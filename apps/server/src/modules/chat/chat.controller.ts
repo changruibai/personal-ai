@@ -121,5 +121,39 @@ export class ChatController {
   ) {
     return this.chatService.savePartialMessage(conversationId, user.id, dto.content);
   }
+
+  @Post('conversations/:id/messages/:messageId/edit')
+  @ApiOperation({ summary: '编辑消息并重新生成回复' })
+  async editMessageStream(
+    @CurrentUser() user: User,
+    @Param('id') conversationId: string,
+    @Param('messageId') messageId: string,
+    @Body() dto: { content: string },
+    @Res() res: Response,
+  ) {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    try {
+      for await (const chunk of this.chatService.editMessageStream(
+        conversationId,
+        messageId,
+        user.id,
+        dto.content,
+      )) {
+        if (chunk.type === 'content') {
+          res.write(`data: ${JSON.stringify({ content: chunk.data })}\n\n`);
+        } else if (chunk.type === 'relatedQuestions') {
+          res.write(`data: ${JSON.stringify({ relatedQuestions: chunk.data })}\n\n`);
+        }
+      }
+      res.write('data: [DONE]\n\n');
+    } catch (error) {
+      res.write(`data: ${JSON.stringify({ error: (error as Error).message })}\n\n`);
+    } finally {
+      res.end();
+    }
+  }
 }
 
