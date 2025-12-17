@@ -274,6 +274,210 @@ export const promptApi = {
   copy: (id: string) => api.post(`/prompts/${id}/copy`),
 };
 
+// 简历模板类型定义（爬取的完整模板）
+export interface ResumeTemplate {
+  id: string;
+  name: string;
+  description: string;
+  source: string; // 来源网站
+  sourceUrl: string; // 原始链接
+  previewImage: string;
+  html: string; // 完整 HTML 模板
+  css: string; // CSS 样式
+  category: 'professional' | 'creative' | 'minimal' | 'modern' | 'academic';
+  placeholders: string[]; // 模板中的占位符列表
+  crawledAt: Date;
+}
+
+// Resume API
+export const resumeApi = {
+  // 解析简历文本
+  parse: (content: string) => api.post('/resume/parse', { content }),
+
+  // 上传并解析简历文件 (支持 txt, md, docx, pdf)
+  uploadFile: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+    
+    const response = await fetch(`${API_BASE_URL}/resume/upload`, {
+      method: 'POST',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: '上传失败' }));
+      throw new Error(error.message || '上传失败');
+    }
+
+    return response.json();
+  },
+
+  // 获取优化建议
+  getSuggestions: (content: string) =>
+    api.post('/resume/suggestions', { content }),
+
+  // 优化简历（流式）
+  optimizeStream: async function* (
+    data: {
+      content: string;
+      instruction?: string;
+      targetPosition?: string;
+      style?: 'professional' | 'creative' | 'academic' | 'minimal';
+    },
+    onChunk?: (chunk: string) => void,
+    signal?: AbortSignal,
+  ) {
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+
+    const response = await fetch(`${API_BASE_URL}/resume/optimize`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: JSON.stringify(data),
+      signal,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: '请求失败' }));
+      throw new Error(error.message || '请求失败');
+    }
+
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+
+    if (!reader) {
+      throw new Error('无法读取响应流');
+    }
+
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') {
+              return;
+            }
+
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.error) {
+                throw new Error(parsed.error);
+              }
+              if (parsed.content) {
+                onChunk?.(parsed.content);
+                yield parsed.content;
+              }
+            } catch {
+              // 忽略解析错误
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  },
+
+  // 导出简历 HTML
+  exportHTML: (
+    content: string,
+    style?: 'professional' | 'creative' | 'academic' | 'minimal',
+  ) => api.post('/resume/export', { content, style }),
+
+  // 导出简历 Word 文档
+  exportDocx: async (
+    content: string,
+    style?: 'professional' | 'creative' | 'academic' | 'minimal',
+  ) => {
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+
+    const response = await fetch(`${API_BASE_URL}/resume/export/docx`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: JSON.stringify({ content, style }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: '导出失败' }));
+      throw new Error(error.message || '导出失败');
+    }
+
+    return response.blob();
+  },
+
+  // ============= 模板相关 API =============
+
+  // 获取所有模板（内置 + 爬取的）
+  getTemplates: (params?: {
+    category?: ResumeTemplate['category'];
+    source?: 'builtin' | 'crawled' | 'all';
+  }) => {
+    const queryParams = new URLSearchParams();
+    if (params?.category) queryParams.append('category', params.category);
+    if (params?.source) queryParams.append('source', params.source);
+    const query = queryParams.toString();
+    return api.get<ResumeTemplate[]>(`/resume/templates${query ? `?${query}` : ''}`);
+  },
+
+  // 获取单个模板
+  getTemplate: (id: string) => api.get<ResumeTemplate>(`/resume/templates/${id}`),
+
+  // 爬取新模板
+  crawlTemplates: () => api.post('/resume/templates/crawl'),
+
+  // 预览模板效果
+  previewTemplate: (templateId: string, content: string) =>
+    api.post(`/resume/templates/${templateId}/preview`, { content }),
+
+  // 使用模板导出 HTML
+  exportWithTemplate: (content: string, templateId: string) =>
+    api.post('/resume/export/template', { content, templateId }),
+
+  // 使用模板导出 Word
+  exportWithTemplateDocx: async (content: string, templateId: string) => {
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+
+    const response = await fetch(`${API_BASE_URL}/resume/export/template/docx`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: JSON.stringify({ content, templateId }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: '导出失败' }));
+      throw new Error(error.message || '导出失败');
+    }
+
+    return response.blob();
+  },
+};
+
 // Image Generation API
 export const imageApi = {
   generate: (data: {

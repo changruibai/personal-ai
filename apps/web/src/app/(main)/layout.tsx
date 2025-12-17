@@ -14,7 +14,7 @@ interface MainLayoutProps {
 }
 
 // 不需要侧边栏的路由
-const NO_SIDEBAR_ROUTES = ['/assistants', '/prompts', '/settings'];
+const NO_SIDEBAR_ROUTES = ['/assistants', '/prompts', '/settings', '/resume'];
 
 const MainLayout: FC<MainLayoutProps> = ({ children }) => {
   const router = useRouter();

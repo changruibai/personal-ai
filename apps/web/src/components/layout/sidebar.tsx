@@ -21,6 +21,7 @@ import {
   Wand2,
   ChevronUp,
   Store,
+  Contact,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -359,6 +360,12 @@ export const Sidebar: FC = () => {
                 <Link href="/prompts">
                   <FileText className="mr-2 h-4 w-4" />
                   Prompt库
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer" asChild>
+                <Link href="/resume">
+                  <Contact className="mr-2 h-4 w-4" />
+                  简历助手
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem className="cursor-pointer" asChild>
