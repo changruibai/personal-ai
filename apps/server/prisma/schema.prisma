@@ -26,6 +26,7 @@ model User {
   conversations Conversation[]
   aiAssistants  AIAssistant[]
   prompts       Prompt[]
+  assistantFavorites AssistantFavorite[]
 
   @@map("users")
 }
@@ -43,6 +44,9 @@ model AIAssistant {
   maxTokens   Int      @default(4096) @map("max_tokens")
   skills      String?  // 技能配置 JSON 字符串
   isDefault   Boolean  @default(false) @map("is_default")
+  // 公开市场相关字段
+  isPublic    Boolean  @default(false) @map("is_public") // 是否公开到市场
+  usageCount  Int      @default(0) @map("usage_count") // 被引用次数
   // 相关问题推荐配置
   relatedQuestionsEnabled Boolean @default(true) @map("related_questions_enabled")
   relatedQuestionsMode    String  @default("llm") @map("related_questions_mode") // llm | template | disabled
@@ -53,6 +57,7 @@ model AIAssistant {
   // 关联
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   conversations Conversation[]
+  favorites     AssistantFavorite[]
 
   @@map("ai_assistants")
 }
@@ -127,4 +132,20 @@ model Skill {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("skills")
+}
+
+// 助手收藏表
+model AssistantFavorite {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  assistantId String   @map("assistant_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // 关联
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assistant AIAssistant @relation(fields: [assistantId], references: [id], onDelete: Cascade)
+
+  // 唯一约束：每个用户只能收藏一个助手一次
+  @@unique([userId, assistantId])
+  @@map("assistant_favorites")
 }

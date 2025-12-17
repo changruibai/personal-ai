@@ -15,6 +15,7 @@ import {
   Settings2,
   Loader2,
   MessageSquare,
+  Globe,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -33,6 +34,8 @@ interface Assistant {
   maxTokens: number;
   skills?: Record<string, unknown>;
   isDefault: boolean;
+  isPublic?: boolean;
+  usageCount?: number;
   createdAt: string;
 }
 
@@ -157,15 +160,21 @@ const AssistantsPage: FC = () => {
                   transition={{ delay: index * 0.05 }}
                   className="group relative bg-card border border-border rounded-2xl p-6 hover:border-primary/50 transition-colors"
                 >
-                  {/* Default Badge */}
-                  {assistant.isDefault && (
-                    <div className="absolute top-4 right-4">
+                  {/* Badges */}
+                  <div className="absolute top-4 right-4 flex gap-2">
+                    {assistant.isPublic && (
+                      <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-blue-500/10 text-blue-500 text-xs">
+                        <Globe className="h-3 w-3" />
+                        公开
+                      </div>
+                    )}
+                    {assistant.isDefault && (
                       <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-primary/10 text-primary text-xs">
                         <Star className="h-3 w-3 fill-current" />
                         默认
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
 
                   {/* Avatar & Name */}
                   <div className="flex items-start gap-4 mb-4">
@@ -191,6 +200,9 @@ const AssistantsPage: FC = () => {
                   <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
                     <span>温度: {assistant.temperature}</span>
                     <span>Token: {assistant.maxTokens}</span>
+                    {assistant.isPublic && assistant.usageCount !== undefined && assistant.usageCount > 0 && (
+                      <span>{assistant.usageCount} 次使用</span>
+                    )}
                   </div>
 
                   {/* Actions */}

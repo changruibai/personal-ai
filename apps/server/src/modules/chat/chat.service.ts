@@ -38,6 +38,29 @@ export class ChatService {
         });
         assistantId = newDefaultAssistant.id;
       }
+    } else {
+      // 验证指定的助手是否存在且用户有权使用（自己的或公开的）
+      const assistant = await this.prisma.aIAssistant.findFirst({
+        where: {
+          id: assistantId,
+          OR: [
+            { userId }, // 用户自己的助手
+            { isPublic: true }, // 公开助手
+          ],
+        },
+      });
+
+      if (!assistant) {
+        throw new NotFoundException('助手不存在或无权使用');
+      }
+
+      // 如果是公开助手，增加使用计数
+      if (assistant.isPublic && assistant.userId !== userId) {
+        await this.prisma.aIAssistant.update({
+          where: { id: assistantId },
+          data: { usageCount: { increment: 1 } } as any,
+        });
+      }
     }
 
     return this.prisma.conversation.create({
@@ -47,7 +70,17 @@ export class ChatService {
         assistantId,
       },
       include: {
-        assistant: true,
+        assistant: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                avatar: true,
+              },
+            },
+          },
+        },
       },
     });
   }

@@ -124,4 +124,13 @@ export class CreateAssistantDto {
   @Min(1)
   @Max(5)
   relatedQuestionsCount?: number;
+
+  @ApiProperty({
+    example: false,
+    description: '是否公开到助手市场',
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isPublic?: boolean;
 }

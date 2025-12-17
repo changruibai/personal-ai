@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { Loader2, ChevronDown, ChevronUp, Sparkles, Code, Search, HelpCircle } from 'lucide-react';
+import { Loader2, ChevronDown, ChevronUp, Sparkles, Code, Search, HelpCircle, Globe } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +24,7 @@ const assistantSchema = z.object({
   temperature: z.number().min(0).max(2).optional(),
   maxTokens: z.number().min(100).max(128000).optional(),
   isDefault: z.boolean().optional(),
+  isPublic: z.boolean().optional(),
   skills: z
     .object({
       imageGeneration: z.boolean().optional(),
@@ -48,6 +49,7 @@ interface Assistant {
   temperature: number;
   maxTokens: number;
   isDefault: boolean;
+  isPublic?: boolean;
   // skills 可能是 JSON 字符串（从后端返回）或对象（前端使用）
   skills?:
     | string
@@ -92,6 +94,7 @@ export const AssistantDialog: FC<AssistantDialogProps> = ({ open, onOpenChange, 
       temperature: 0.9,
       maxTokens: 4096,
       isDefault: false,
+      isPublic: false,
       skills: {
         imageGeneration: false,
         codeExecution: false,
@@ -133,6 +136,7 @@ export const AssistantDialog: FC<AssistantDialogProps> = ({ open, onOpenChange, 
         temperature: assistant.temperature,
         maxTokens: assistant.maxTokens,
         isDefault: assistant.isDefault,
+        isPublic: assistant.isPublic ?? false,
         skills: parsedSkills,
         relatedQuestionsEnabled: assistant.relatedQuestionsEnabled ?? true,
         relatedQuestionsMode: assistant.relatedQuestionsMode ?? 'llm',
@@ -147,6 +151,7 @@ export const AssistantDialog: FC<AssistantDialogProps> = ({ open, onOpenChange, 
         temperature: 0.9,
         maxTokens: 4096,
         isDefault: false,
+        isPublic: false,
         skills: {
           imageGeneration: false,
           codeExecution: false,
@@ -458,6 +463,28 @@ export const AssistantDialog: FC<AssistantDialogProps> = ({ open, onOpenChange, 
                 </div>
               </div>
             )}
+          </div>
+
+          {/* 公开到市场设置 */}
+          <div className="border-t pt-4">
+            <div className="flex items-center gap-3 rounded-lg p-3">
+              <Globe className="h-5 w-5 text-blue-500" />
+              <div className="flex-1">
+                <div className="font-medium">公开到助手市场</div>
+                <div className="text-xs text-muted-foreground">
+                  开启后，其他用户可以在市场发现并使用你的助手
+                </div>
+              </div>
+              <label className="relative inline-flex cursor-pointer items-center">
+                <input
+                  type="checkbox"
+                  {...register('isPublic')}
+                  disabled={isLoading}
+                  className="peer sr-only"
+                />
+                <div className="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none dark:border-gray-600 dark:bg-gray-700" />
+              </label>
+            </div>
           </div>
 
           {/* 显示全局表单错误 */}

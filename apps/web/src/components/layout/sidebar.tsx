@@ -20,6 +20,7 @@ import {
   Sparkles,
   Wand2,
   ChevronUp,
+  Store,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -346,6 +347,12 @@ export const Sidebar: FC = () => {
                 <Link href="/assistants">
                   <Bot className="mr-2 h-4 w-4" />
                   AI助手管理
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer" asChild>
+                <Link href="/market">
+                  <Store className="mr-2 h-4 w-4" />
+                  助手市场
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem className="cursor-pointer" asChild>

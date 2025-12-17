@@ -234,11 +234,22 @@ export const assistantApi = {
     maxTokens?: number;
     skills?: Record<string, unknown>;
     isDefault?: boolean;
+    isPublic?: boolean;
   }) => api.post('/assistants', data),
   update: (id: string, data: Partial<Parameters<typeof assistantApi.create>[0]>) =>
     api.patch(`/assistants/${id}`, data),
   delete: (id: string) => api.delete(`/assistants/${id}`),
   duplicate: (id: string) => api.post(`/assistants/${id}/duplicate`),
+
+  // 助手市场 API
+  getMarket: (params?: { search?: string; sortBy?: 'popular' | 'newest'; limit?: number; offset?: number }) =>
+    api.get('/assistants/market', { params }),
+  getMarketAssistant: (id: string) => api.get(`/assistants/market/${id}`),
+  getFavorites: () => api.get('/assistants/favorites'),
+  favorite: (id: string) => api.post(`/assistants/market/${id}/favorite`),
+  unfavorite: (id: string) => api.delete(`/assistants/market/${id}/favorite`),
+  usePublicAssistant: (id: string) => api.post(`/assistants/market/${id}/use`),
+  copyPublicAssistant: (id: string) => api.post(`/assistants/market/${id}/copy`),
 };
 
 // Prompt API
